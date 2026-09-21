@@ -110,6 +110,15 @@
         border-color: #71303d;
       }
 
+      .copy-json {
+        background: #173c32;
+        border-color: #2d725e;
+      }
+
+      .copy-json:hover {
+        background: #205345;
+      }
+
       .controls {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -355,6 +364,7 @@
       </div>
 
       <div class="subcontrols">
+        <button id="copyJsonBtn" class="copy-json">Copy JSON</button>
         <button id="ignoredBtn">Ignored: 0</button>
         <button id="consoleBtn">Publisher Console</button>
       </div>
@@ -438,9 +448,15 @@
     if (n >= 1) {
       out = n.toFixed(2);
     } else if (n >= 0.01) {
-      out = n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+      out = n
+        .toFixed(3)
+        .replace(/0+$/, "")
+        .replace(/\.$/, "");
     } else {
-      out = n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+      out = n
+        .toFixed(4)
+        .replace(/0+$/, "")
+        .replace(/\.$/, "");
     }
 
     return `${out} ${currency || ""}`.trim();
@@ -1050,8 +1066,6 @@
           bids.push(item);
         }
       });
-
-      return bids;
     }
 
     return bids;
@@ -1247,23 +1261,6 @@
     const found = [];
     const seen = new WeakSet();
 
-    const ignoredGlobals = new Set([
-      "window",
-      "self",
-      "top",
-      "parent",
-      "frames",
-      "document",
-      "location",
-      "history",
-      "navigator",
-      "performance",
-      "localStorage",
-      "sessionStorage",
-      "indexedDB",
-      "chrome"
-    ]);
-
     let globalNames = [];
 
     try {
@@ -1384,10 +1381,6 @@
     };
 
     namesToInspect.forEach(name => {
-      if (ignoredGlobals.has(name)) {
-        return;
-      }
-
       try {
         inspect(
           window[name],
@@ -2134,6 +2127,331 @@
     );
   }
 
+  function sanitizeGamParams(params) {
+    const out = {};
+
+    Object.keys(params || {})
+      .forEach(key => {
+        const value =
+          params[key];
+
+        if (
+          key === "gdpr_consent"
+        ) {
+          out[key] = {
+            present:
+              Boolean(value),
+            length:
+              String(value || "")
+                .length
+          };
+
+          return;
+        }
+
+        if (
+          key === "gpp"
+        ) {
+          out[key] = {
+            present:
+              Boolean(value),
+            length:
+              String(value || "")
+                .length
+          };
+
+          return;
+        }
+
+        out[key] = value;
+      });
+
+    return out;
+  }
+
+  function buildDiagnosticExport(
+    slotData
+  ) {
+    const request =
+      slotData.bestRequest;
+
+    const consent =
+      slotData.consent;
+
+    const hbBids =
+      (slotData.hbBids || [])
+        .map(bid => ({
+          bidder:
+            bid.bidder || "",
+          cpm:
+            bid.cpm,
+          currency:
+            bid.currency || "",
+          bucket:
+            bid.bucket || "",
+          size:
+            bid.size || "",
+          adId:
+            bid.adId || "",
+          responseTime:
+            bid.responseTime,
+          status:
+            bid.status || "",
+          source:
+            bid.source || ""
+        }));
+
+    let pbjsVersion = null;
+
+    try {
+      const pbjs =
+        getPbjs();
+
+      if (pbjs) {
+        pbjsVersion =
+          pbjs.version ||
+          pbjs.libLoaded ||
+          null;
+      }
+    } catch (_) {}
+
+    const exportObject = {
+      debugr: {
+        tool:
+          "Debugr Troubleshooting",
+        exportedAt:
+          new Date().toISOString(),
+        pageUrl:
+          location.href,
+        pageTitle:
+          document.title,
+        userAgent:
+          navigator.userAgent
+      },
+
+      environment: {
+        gptAvailable:
+          Boolean(
+            getGoogletag()
+          ),
+        pbjsAvailable:
+          Boolean(
+            getPbjs()
+          ),
+        pbjsVersion,
+        tcfApiAvailable:
+          typeof window.__tcfapi ===
+          "function",
+        gppApiAvailable:
+          typeof window.__gpp ===
+          "function",
+        totalActiveSlots:
+          state.slots.length,
+        totalIgnoredSlots:
+          state.ignored.length
+      },
+
+      selectedSlot: {
+        index:
+          state.selected,
+        originalIndex:
+          slotData.originalIndex,
+        adUnitPath:
+          slotData.adUnitPath,
+        divId:
+          slotData.divId,
+        networkCode:
+          slotData.networkCode,
+        outOfPage:
+          slotData.oop,
+        configuredSizes:
+          slotData.sizes,
+        domSize:
+          slotData.domSize,
+        elementExists:
+          Boolean(
+            slotData.element
+          )
+      },
+
+      auction: {
+        winner:
+          slotData.winner,
+        ids:
+          slotData.ids
+      },
+
+      gpt: {
+        responseInformation:
+          slotData.response,
+        slotTargeting:
+          slotData.targeting,
+        pageTargeting:
+          slotData.pageTargeting,
+        overlayIds:
+          slotData.overlayIds
+      },
+
+      gamRequest: request
+        ? {
+            found: true,
+            match: {
+              score:
+                request.match.score,
+              reason:
+                request.match.reason
+            },
+            timing: {
+              startTimeMs:
+                request.startTime,
+              durationMs:
+                request.duration,
+              transferSize:
+                request.transferSize
+            },
+            adUnitPath:
+              getRequestAdUnitPath(
+                request.parsed
+              ),
+            params:
+              sanitizeGamParams(
+                request.parsed.params
+              ),
+            prevScp:
+              request.parsed.prevScp,
+            custParams:
+              request.parsed.custParams
+          }
+        : {
+            found: false
+          },
+
+      headerBidding: {
+        detected:
+          slotData.hbDetected,
+        winnerLikely:
+          slotData.hbWinnerLikely,
+        requestData:
+          slotData.hbRequest,
+        topBid:
+          slotData.topBid
+            ? {
+                bidder:
+                  slotData.topBid.bidder,
+                cpm:
+                  slotData.topBid.cpm,
+                currency:
+                  slotData.topBid.currency,
+                bucket:
+                  slotData.topBid.bucket,
+                size:
+                  slotData.topBid.size,
+                adId:
+                  slotData.topBid.adId,
+                responseTime:
+                  slotData.topBid.responseTime,
+                status:
+                  slotData.topBid.status,
+                source:
+                  slotData.topBid.source
+              }
+            : null,
+        bids:
+          hbBids,
+        hbTargeting:
+          getHbTargeting(
+            slotData.targeting
+          )
+      },
+
+      privacy: {
+        gdprApplies:
+          consent.gdprApplies,
+        cmpPresent:
+          consent.cmpPresent,
+        consentStringPresent:
+          consent.consentString,
+        consentStringLength:
+          String(
+            consent.consentValue || ""
+          ).length,
+        gpp:
+          consent.gpp,
+        gppStringPresent:
+          Boolean(
+            consent.gppValue
+          ),
+        gppStringLength:
+          String(
+            consent.gppValue || ""
+          ).length,
+        gppSid:
+          consent.gppSid,
+        usPrivacy:
+          consent.usPrivacy,
+        usPrivacyValue:
+          consent.usPrivacyValue
+      },
+
+      ignoredSlots:
+        state.ignored.map(item => ({
+          originalIndex:
+            item.originalIndex,
+          adUnitPath:
+            item.adUnitPath,
+          divId:
+            item.divId,
+          reason:
+            item.reason
+        }))
+    };
+
+    return exportObject;
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard
+        .writeText(text);
+
+      return true;
+    } catch (_) {
+      try {
+        const textarea =
+          document.createElement(
+            "textarea"
+          );
+
+        textarea.value =
+          text;
+
+        textarea.style.position =
+          "fixed";
+
+        textarea.style.left =
+          "-9999px";
+
+        document.body
+          .appendChild(
+            textarea
+          );
+
+        textarea.select();
+
+        const ok =
+          document.execCommand(
+            "copy"
+          );
+
+        textarea.remove();
+
+        return ok;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
   function collectSlots() {
     const gt =
       getGoogletag();
@@ -2317,7 +2635,9 @@
       `${state.slots.length} active`;
 
     $("#ignoredBtn").textContent =
-      `Ignored: ${state.ignored.length}`;
+      state.showIgnored
+        ? `Hide ignored (${state.ignored.length})`
+        : `Ignored: ${state.ignored.length}`;
 
     select.innerHTML = "";
 
@@ -2998,10 +3318,22 @@
             stringify({
               gdpr:
                 consent.gdprValue,
-              gdpr_consent:
-                consent.consentValue,
-              gpp:
-                consent.gppValue,
+              gdpr_consent_present:
+                Boolean(
+                  consent.consentValue
+                ),
+              gdpr_consent_length:
+                String(
+                  consent.consentValue || ""
+                ).length,
+              gpp_present:
+                Boolean(
+                  consent.gppValue
+                ),
+              gpp_length:
+                String(
+                  consent.gppValue || ""
+                ).length,
               gpp_sid:
                 consent.gppSid,
               us_privacy:
@@ -3043,10 +3375,12 @@
                 "data-copy"
               ) || "";
 
-            try {
-              await navigator.clipboard
-                .writeText(value);
+            const success =
+              await copyText(
+                value
+              );
 
+            if (success) {
               const old =
                 button.textContent;
 
@@ -3057,27 +3391,6 @@
                 button.textContent =
                   old;
               }, 800);
-            } catch (_) {
-              const textarea =
-                document.createElement(
-                  "textarea"
-                );
-
-              textarea.value =
-                value;
-
-              document.body
-                .appendChild(
-                  textarea
-                );
-
-              textarea.select();
-
-              document.execCommand(
-                "copy"
-              );
-
-              textarea.remove();
             }
           }
         );
@@ -3149,6 +3462,52 @@
     .addEventListener(
       "click",
       refresh
+    );
+
+  $("#copyJsonBtn")
+    .addEventListener(
+      "click",
+      async () => {
+        const slotData =
+          state.slots[
+            state.selected
+          ];
+
+        if (!slotData) {
+          return;
+        }
+
+        const data =
+          buildDiagnosticExport(
+            slotData
+          );
+
+        const text =
+          JSON.stringify(
+            data,
+            null,
+            2
+          );
+
+        const button =
+          $("#copyJsonBtn");
+
+        const old =
+          button.textContent;
+
+        const success =
+          await copyText(text);
+
+        button.textContent =
+          success
+            ? "JSON copied ✓"
+            : "Copy failed";
+
+        setTimeout(() => {
+          button.textContent =
+            old;
+        }, 1400);
+      }
     );
 
   $("#ignoredBtn")
