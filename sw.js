@@ -8,12 +8,8 @@
     API_URL: "https://data.similarweb.com/api/v1/data",
     EXTENSION_VERSION: "6.12.22",
 
-    VERSION: "2026-09-21-direct-api"
+    VERSION: "2026-09-21-direct-diagnostic"
   };
-
-  /* =========================================================
-     HELPERS
-  ========================================================= */
 
   function esc(value) {
     return String(value ?? "")
@@ -109,6 +105,7 @@
         return value;
       }
     }
+
     return null;
   }
 
@@ -149,200 +146,6 @@
       .replace(/\b\w/g, m => m.toUpperCase());
   }
 
-  /* =========================================================
-     API
-  ========================================================= */
-
-  async function fetchSimilarweb(domain) {
-    const url = `${SW.API_URL}?domain=${encodeURIComponent(domain)}`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Extension-Version": SW.EXTENSION_VERSION
-      },
-      redirect: "follow"
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-      throw new Error(
-        `Similarweb API returned HTTP ${response.status}${
-          text ? `: ${text.slice(0, 180)}` : ""
-        }`
-      );
-    }
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error("Similarweb returned invalid JSON");
-    }
-  }
-
-  /* =========================================================
-     NORMALIZATION
-  ========================================================= */
-
-  function normalizeVisits(data) {
-    const monthly = data?.EstimatedMonthlyVisits;
-
-    if (!monthly || typeof monthly !== "object") return [];
-
-    return Object.entries(monthly)
-      .map(([date, visits]) => ({
-        date,
-        visits: num(visits)
-      }))
-      .filter(x => x.visits !== null)
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  function normalizeCountries(data) {
-    return safeArray(data?.TopCountryShares)
-      .map(item => {
-        const country =
-          firstDefined(
-            item?.Country,
-            item?.CountryCode,
-            item?.Name,
-            item?.Code,
-            item?.country,
-            item?.countryCode
-          ) || "Unknown";
-
-        const share = firstDefined(
-          item?.Value,
-          item?.Share,
-          item?.TrafficShare,
-          item?.Percentage,
-          item?.value,
-          item?.share
-        );
-
-        return {
-          country,
-          share: num(share)
-        };
-      })
-      .filter(x => x.share !== null)
-      .sort((a, b) => b.share - a.share)
-      .slice(0, 5);
-  }
-
-  function normalizeKeywords(data) {
-    return safeArray(data?.TopKeywords)
-      .map(item => {
-        const name = firstDefined(
-          item?.Name,
-          item?.Keyword,
-          item?.keyword,
-          item?.name
-        );
-
-        const traffic = firstDefined(
-          item?.EstimatedValue,
-          item?.Traffic,
-          item?.Value,
-          item?.traffic
-        );
-
-        const volume = firstDefined(
-          item?.Volume,
-          item?.SearchVolume,
-          item?.volume
-        );
-
-        const cpc = firstDefined(
-          item?.Cpc,
-          item?.CPC,
-          item?.cpc
-        );
-
-        return {
-          name,
-          traffic: num(traffic),
-          volume: num(volume),
-          cpc: num(cpc)
-        };
-      })
-      .filter(x => x.name)
-      .slice(0, 5);
-  }
-
-  function normalizeAiTraffic(data) {
-    const details = data?.AiTrafficDetails || {};
-    const distribution = details?.Traffic?.Distribution || {};
-
-    const chatbots = safeArray(distribution?.Chatbots);
-
-    if (chatbots.length) {
-      return chatbots
-        .map(item => ({
-          name: firstDefined(
-            item?.Name,
-            item?.Domain,
-            item?.Source,
-            item?.name,
-            item?.domain
-          ),
-          value: num(
-            firstDefined(
-              item?.Value,
-              item?.Share,
-              item?.TrafficShare,
-              item?.Percentage,
-              item?.value
-            )
-          )
-        }))
-        .filter(x => x.name && x.value !== null)
-        .sort((a, b) => b.value - a.value);
-    }
-
-    const chart = safeArray(distribution?.Chart);
-
-    if (chart.length) {
-      const latest = chart[chart.length - 1];
-
-      if (latest && typeof latest === "object") {
-        const possibleArray =
-          latest?.Data ||
-          latest?.Values ||
-          latest?.Distribution ||
-          latest?.Sources;
-
-        if (Array.isArray(possibleArray)) {
-          return possibleArray
-            .map(item => ({
-              name: firstDefined(
-                item?.Name,
-                item?.Domain,
-                item?.Source
-              ),
-              value: num(
-                firstDefined(
-                  item?.Value,
-                  item?.Share,
-                  item?.Percentage
-                )
-              )
-            }))
-            .filter(x => x.name && x.value !== null)
-            .sort((a, b) => b.value - a.value);
-        }
-      }
-    }
-
-    return [];
-  }
-
-  /* =========================================================
-     CSS
-  ========================================================= */
-
   function injectStyles() {
     if (document.getElementById(SW.STYLE_ID)) return;
 
@@ -354,7 +157,7 @@
         position: fixed;
         top: 18px;
         right: 18px;
-        width: min(430px, calc(100vw - 24px));
+        width: min(460px, calc(100vw - 24px));
         max-height: calc(100vh - 36px);
         overflow: auto;
         z-index: 2147483647;
@@ -371,7 +174,7 @@
         line-height: 1.4;
         color: #e9edf3;
 
-        background: rgba(18, 20, 26, 0.97);
+        background: rgba(18, 20, 26, 0.98);
         border: 1px solid rgba(255,255,255,.12);
         border-radius: 14px;
         box-shadow: 0 16px 50px rgba(0,0,0,.45);
@@ -397,7 +200,7 @@
 
         padding: 13px 14px;
 
-        background: rgba(18,20,26,.96);
+        background: rgba(18,20,26,.97);
         border-bottom: 1px solid rgba(255,255,255,.09);
         backdrop-filter: blur(18px);
       }
@@ -455,17 +258,30 @@
 
       #${SW.PANEL_ID} .sw-loading,
       #${SW.PANEL_ID} .sw-error {
-        padding: 22px 10px;
-        text-align: center;
+        padding: 18px 10px;
       }
 
       #${SW.PANEL_ID} .sw-loading {
+        text-align: center;
         color: #b8c1cc;
       }
 
       #${SW.PANEL_ID} .sw-error {
-        color: #ff9a9a;
+        color: #ffaaaa;
         white-space: pre-wrap;
+      }
+
+      #${SW.PANEL_ID} .sw-debug {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 10px;
+        background: rgba(255,255,255,.035);
+        color: #c7cfda;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
 
       #${SW.PANEL_ID} .sw-grid {
@@ -597,10 +413,6 @@
     document.documentElement.appendChild(style);
   }
 
-  /* =========================================================
-     PANEL
-  ========================================================= */
-
   function removePanel() {
     document.getElementById(SW.PANEL_ID)?.remove();
   }
@@ -662,6 +474,221 @@
     `;
   }
 
+  function normalizeVisits(data) {
+    const monthly = data?.EstimatedMonthlyVisits;
+
+    if (!monthly || typeof monthly !== "object") return [];
+
+    return Object.entries(monthly)
+      .map(([date, visits]) => ({
+        date,
+        visits: num(visits)
+      }))
+      .filter(x => x.visits !== null)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function normalizeCountries(data) {
+    return safeArray(data?.TopCountryShares)
+      .map(item => ({
+        country:
+          firstDefined(
+            item?.Country,
+            item?.CountryCode,
+            item?.Name,
+            item?.Code,
+            item?.country,
+            item?.countryCode
+          ) || "Unknown",
+
+        share: num(
+          firstDefined(
+            item?.Value,
+            item?.Share,
+            item?.TrafficShare,
+            item?.Percentage,
+            item?.value,
+            item?.share
+          )
+        )
+      }))
+      .filter(x => x.share !== null)
+      .sort((a, b) => b.share - a.share)
+      .slice(0, 5);
+  }
+
+  function normalizeKeywords(data) {
+    return safeArray(data?.TopKeywords)
+      .map(item => ({
+        name: firstDefined(
+          item?.Name,
+          item?.Keyword,
+          item?.keyword,
+          item?.name
+        ),
+
+        traffic: num(
+          firstDefined(
+            item?.EstimatedValue,
+            item?.Traffic,
+            item?.Value,
+            item?.traffic
+          )
+        ),
+
+        volume: num(
+          firstDefined(
+            item?.Volume,
+            item?.SearchVolume,
+            item?.volume
+          )
+        ),
+
+        cpc: num(
+          firstDefined(
+            item?.Cpc,
+            item?.CPC,
+            item?.cpc
+          )
+        )
+      }))
+      .filter(x => x.name)
+      .slice(0, 5);
+  }
+
+  function normalizeAiTraffic(data) {
+    const details = data?.AiTrafficDetails || {};
+    const distribution = details?.Traffic?.Distribution || {};
+
+    const chatbots = safeArray(distribution?.Chatbots);
+
+    return chatbots
+      .map(item => ({
+        name: firstDefined(
+          item?.Name,
+          item?.Domain,
+          item?.Source,
+          item?.name,
+          item?.domain
+        ),
+
+        value: num(
+          firstDefined(
+            item?.Value,
+            item?.Share,
+            item?.TrafficShare,
+            item?.Percentage,
+            item?.value
+          )
+        )
+      }))
+      .filter(x => x.name && x.value !== null)
+      .sort((a, b) => b.value - a.value);
+  }
+
+  async function fetchSimilarweb(domain) {
+    const url =
+      `${SW.API_URL}?domain=${encodeURIComponent(domain)}`;
+
+    console.group("[SW TEST] Similarweb fetch");
+    console.log("SW version:", SW.VERSION);
+    console.log("Page origin:", location.origin);
+    console.log("Page URL:", location.href);
+    console.log("Domain:", domain);
+    console.log("API URL:", url);
+    console.log("Extension version:", SW.EXTENSION_VERSION);
+    console.log("Starting fetch...");
+
+    const started = performance.now();
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Extension-Version": SW.EXTENSION_VERSION
+        },
+        redirect: "follow",
+        cache: "no-store"
+      });
+
+      const elapsed = Math.round(performance.now() - started);
+
+      console.log("Response received:");
+      console.log({
+        status: response.status,
+        ok: response.ok,
+        type: response.type,
+        url: response.url,
+        redirected: response.redirected,
+        elapsedMs: elapsed
+      });
+
+      const responseHeaders = {};
+
+      try {
+        for (const [key, value] of response.headers.entries()) {
+          responseHeaders[key] = value;
+        }
+      } catch {}
+
+      console.log("Response headers:", responseHeaders);
+
+      const text = await response.text();
+
+      console.log("Body preview:", text.slice(0, 2000));
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP ${response.status}: ${text.slice(0, 500)}`
+        );
+      }
+
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.error("JSON parse failed:", error);
+
+        throw new Error(
+          `Invalid JSON response: ${text.slice(0, 500)}`
+        );
+      }
+
+      console.log("Parsed JSON:", data);
+      console.groupEnd();
+
+      return data;
+
+    } catch (error) {
+      const elapsed = Math.round(performance.now() - started);
+
+      console.error("[SW TEST] FETCH FAILED");
+      console.error("Error object:", error);
+      console.error("Name:", error?.name);
+      console.error("Message:", error?.message);
+      console.error("Stack:", error?.stack);
+      console.error("Elapsed:", elapsed + " ms");
+
+      console.groupEnd();
+
+      error.__swDebug = {
+        swVersion: SW.VERSION,
+        pageOrigin: location.origin,
+        pageUrl: location.href,
+        domain,
+        apiUrl: url,
+        extensionVersion: SW.EXTENSION_VERSION,
+        name: error?.name || "",
+        message: error?.message || String(error),
+        elapsedMs: elapsed
+      };
+
+      throw error;
+    }
+  }
+
   function render(panel, data) {
     const engagements = data?.Engagments || {};
     const visits = normalizeVisits(data);
@@ -669,13 +696,6 @@
     const latestVisits =
       num(engagements?.Visits) ??
       (visits.length ? visits[visits.length - 1].visits : null);
-
-    const month =
-      engagements?.Month && engagements?.Year
-        ? `${String(engagements.Month).padStart(2, "0")}/${engagements.Year}`
-        : data?.SnapshotDate
-          ? prettyMonth(String(data.SnapshotDate).slice(0, 10))
-          : "";
 
     const globalRank = data?.GlobalRank?.Rank;
     const countryRank = data?.CountryRank?.Rank;
@@ -686,7 +706,8 @@
       data?.Category ||
       "";
 
-    const trafficSources = objectEntriesSorted(data?.TrafficSources);
+    const trafficSources =
+      objectEntriesSorted(data?.TrafficSources);
 
     const countries = normalizeCountries(data);
     const keywords = normalizeKeywords(data);
@@ -700,57 +721,93 @@
     const visitRows = visits.map(item => {
       const width = Math.max(
         2,
-        Math.min(100, ((item.visits || 0) / maxVisit) * 100)
+        Math.min(
+          100,
+          ((item.visits || 0) / maxVisit) * 100
+        )
       );
 
       return `
         <div class="sw-row sw-chart-row">
-          <div class="sw-chart-bar" style="width:${width}%"></div>
-          <div class="sw-row-name">${esc(prettyMonth(item.date))}</div>
-          <div class="sw-row-value">${esc(compactNumber(item.visits))}</div>
+          <div
+            class="sw-chart-bar"
+            style="width:${width}%"
+          ></div>
+
+          <div class="sw-row-name">
+            ${esc(prettyMonth(item.date))}
+          </div>
+
+          <div class="sw-row-value">
+            ${esc(compactNumber(item.visits))}
+          </div>
         </div>
       `;
     });
 
     const rankRows = [
-      simpleRow("Global", rank(globalRank)),
       simpleRow(
-        countryCode ? `Country · ${countryCode}` : "Country",
+        "Global",
+        rank(globalRank)
+      ),
+
+      simpleRow(
+        countryCode
+          ? `Country · ${countryCode}`
+          : "Country",
         rank(countryRank)
       ),
+
       simpleRow(
-        category ? `Category · ${String(category).replace(/_/g, " ")}` : "Category",
+        category
+          ? `Category · ${String(category).replace(/_/g, " ")}`
+          : "Category",
         rank(categoryRank)
       )
     ];
 
     const countryRows = countries.map(item =>
-      simpleRow(item.country, pct(item.share))
+      simpleRow(
+        item.country,
+        pct(item.share)
+      )
     );
 
     const trafficRows = trafficSources.map(item =>
-      simpleRow(prettifySourceName(item.name), pct(item.value))
+      simpleRow(
+        prettifySourceName(item.name),
+        pct(item.value)
+      )
     );
 
     const keywordRows = keywords.map(item => {
       const meta = [];
 
       if (item.traffic !== null) {
-        meta.push(`Traffic ${compactNumber(item.traffic)}`);
+        meta.push(
+          `Traffic ${compactNumber(item.traffic)}`
+        );
       }
 
       if (item.volume !== null) {
-        meta.push(`Volume ${compactNumber(item.volume)}`);
+        meta.push(
+          `Volume ${compactNumber(item.volume)}`
+        );
       }
 
       if (item.cpc !== null) {
-        meta.push(`CPC $${item.cpc.toFixed(2)}`);
+        meta.push(
+          `CPC $${item.cpc.toFixed(2)}`
+        );
       }
 
       return `
         <div class="sw-row">
           <div class="sw-keyword-main">
-            <div class="sw-keyword-name">${esc(item.name)}</div>
+            <div class="sw-keyword-name">
+              ${esc(item.name)}
+            </div>
+
             ${
               meta.length
                 ? `<div class="sw-sub">${esc(meta.join(" · "))}</div>`
@@ -762,61 +819,63 @@
     });
 
     const aiRows = aiTraffic.map(item =>
-      simpleRow(item.name, pct(item.value))
+      simpleRow(
+        item.name,
+        pct(item.value)
+      )
     );
-
-    const aiDetails = data?.AiTrafficDetails || {};
-
-    const aiSummaryRows = [];
-
-    if (num(aiDetails?.TotalVisits) !== null) {
-      aiSummaryRows.push(
-        simpleRow(
-          "AI referrals visits",
-          compactNumber(aiDetails.TotalVisits)
-        )
-      );
-    }
-
-    if (num(aiDetails?.ReferralTraffic) !== null) {
-      aiSummaryRows.push(
-        simpleRow(
-          "Share of traffic",
-          pct(aiDetails.ReferralTraffic)
-        )
-      );
-    }
 
     panel.querySelector(".sw-body").innerHTML = `
       <div class="sw-grid">
+
         <div class="sw-stat">
-          <div class="sw-stat-label">Monthly Visits</div>
-          <div class="sw-stat-value">${esc(compactNumber(latestVisits))}</div>
-          ${month ? `<div class="sw-sub">${esc(month)}</div>` : ""}
+          <div class="sw-stat-label">
+            Monthly Visits
+          </div>
+
+          <div class="sw-stat-value">
+            ${esc(compactNumber(latestVisits))}
+          </div>
         </div>
 
         <div class="sw-stat">
-          <div class="sw-stat-label">Bounce Rate</div>
-          <div class="sw-stat-value">${esc(pct(engagements?.BounceRate))}</div>
+          <div class="sw-stat-label">
+            Bounce Rate
+          </div>
+
+          <div class="sw-stat-value">
+            ${esc(pct(engagements?.BounceRate))}
+          </div>
         </div>
 
         <div class="sw-stat">
-          <div class="sw-stat-label">Pages / Visit</div>
-          <div class="sw-stat-value">${
-            num(engagements?.PagePerVisit) !== null
-              ? Number(engagements.PagePerVisit).toFixed(2)
-              : "—"
-          }</div>
+          <div class="sw-stat-label">
+            Pages / Visit
+          </div>
+
+          <div class="sw-stat-value">
+            ${
+              num(engagements?.PagePerVisit) !== null
+                ? Number(engagements.PagePerVisit).toFixed(2)
+                : "—"
+            }
+          </div>
         </div>
 
         <div class="sw-stat">
-          <div class="sw-stat-label">Avg. Visit Duration</div>
-          <div class="sw-stat-value">${
-            num(engagements?.TimeOnSite) !== null
-              ? esc(duration(engagements.TimeOnSite))
-              : "—"
-          }</div>
+          <div class="sw-stat-label">
+            Avg. Visit Duration
+          </div>
+
+          <div class="sw-stat-value">
+            ${
+              num(engagements?.TimeOnSite) !== null
+                ? esc(duration(engagements.TimeOnSite))
+                : "—"
+            }
+          </div>
         </div>
+
       </div>
 
       ${section("Visits Over Time", visitRows)}
@@ -824,154 +883,135 @@
       ${section("Top Countries", countryRows)}
       ${section("Traffic Sources", trafficRows)}
       ${section("Top Keywords", keywordRows)}
-      ${section("AI Traffic", [...aiSummaryRows, ...aiRows])}
+      ${section("AI Traffic", aiRows)}
 
       <div class="sw-bottom">
-        <button class="sw-copy">Copy Summary</button>
-        <button class="sw-json">Copy JSON</button>
+        <button class="sw-copy-json">
+          Copy JSON
+        </button>
+
+        <button class="sw-copy-debug">
+          Copy Debug
+        </button>
       </div>
 
       <div class="sw-note">
-        Snapshot ${esc(
-          data?.SnapshotDate
-            ? String(data.SnapshotDate).slice(0, 10)
-            : "—"
-        )}
+        SW ${esc(SW.VERSION)}
       </div>
     `;
 
-    panel.querySelector(".sw-copy").onclick = async () => {
-      const lines = [
-        `Similarweb · ${data?.SiteName || currentDomain()}`,
-        "",
-        `Monthly Visits: ${compactNumber(latestVisits)}`,
-        `Bounce Rate: ${pct(engagements?.BounceRate)}`,
-        `Pages / Visit: ${
-          num(engagements?.PagePerVisit) !== null
-            ? Number(engagements.PagePerVisit).toFixed(2)
-            : "—"
-        }`,
-        `Avg. Visit Duration: ${
-          num(engagements?.TimeOnSite) !== null
-            ? duration(engagements.TimeOnSite)
-            : "—"
-        }`,
-        "",
-        `Global Rank: ${rank(globalRank)}`,
-        `Country Rank: ${rank(countryRank)}${countryCode ? ` (${countryCode})` : ""}`,
-        `Category Rank: ${rank(categoryRank)}${category ? ` (${category})` : ""}`
-      ];
-
-      if (visits.length) {
-        lines.push("", "Visits Over Time:");
-
-        visits.forEach(item => {
-          lines.push(
-            `${prettyMonth(item.date)}: ${compactNumber(item.visits)}`
-          );
-        });
-      }
-
-      if (countries.length) {
-        lines.push("", "Top Countries:");
-
-        countries.forEach(item => {
-          lines.push(`${item.country}: ${pct(item.share)}`);
-        });
-      }
-
-      if (trafficSources.length) {
-        lines.push("", "Traffic Sources:");
-
-        trafficSources.forEach(item => {
-          lines.push(
-            `${prettifySourceName(item.name)}: ${pct(item.value)}`
-          );
-        });
-      }
-
-      if (keywords.length) {
-        lines.push("", "Top Keywords:");
-
-        keywords.forEach(item => {
-          const extras = [];
-
-          if (item.traffic !== null) {
-            extras.push(`traffic ${compactNumber(item.traffic)}`);
-          }
-
-          if (item.volume !== null) {
-            extras.push(`volume ${compactNumber(item.volume)}`);
-          }
-
-          if (item.cpc !== null) {
-            extras.push(`CPC $${item.cpc.toFixed(2)}`);
-          }
-
-          lines.push(
-            `${item.name}${extras.length ? ` — ${extras.join(", ")}` : ""}`
-          );
-        });
-      }
-
-      if (aiTraffic.length) {
-        lines.push("", "AI Traffic:");
-
-        aiTraffic.forEach(item => {
-          lines.push(`${item.name}: ${pct(item.value)}`);
-        });
-      }
-
-      try {
-        await navigator.clipboard.writeText(lines.join("\n"));
-
-        const btn = panel.querySelector(".sw-copy");
-        const old = btn.textContent;
-        btn.textContent = "Copied";
-
-        setTimeout(() => {
-          btn.textContent = old;
-        }, 1200);
-      } catch (e) {
-        console.error("[SW] Clipboard error", e);
-      }
-    };
-
-    panel.querySelector(".sw-json").onclick = async () => {
+    panel.querySelector(".sw-copy-json").onclick = async () => {
       try {
         await navigator.clipboard.writeText(
           JSON.stringify(data, null, 2)
         );
 
-        const btn = panel.querySelector(".sw-json");
-        const old = btn.textContent;
+        const btn =
+          panel.querySelector(".sw-copy-json");
+
         btn.textContent = "Copied";
 
         setTimeout(() => {
-          btn.textContent = old;
+          btn.textContent = "Copy JSON";
         }, 1200);
-      } catch (e) {
-        console.error("[SW] Clipboard error", e);
+      } catch (error) {
+        console.error("[SW] Clipboard failed", error);
+      }
+    };
+
+    panel.querySelector(".sw-copy-debug").onclick = async () => {
+      const debug = {
+        swVersion: SW.VERSION,
+        pageUrl: location.href,
+        pageOrigin: location.origin,
+        domain: currentDomain(),
+        apiUrl:
+          `${SW.API_URL}?domain=${encodeURIComponent(currentDomain())}`,
+        extensionVersion: SW.EXTENSION_VERSION,
+        result: "success"
+      };
+
+      try {
+        await navigator.clipboard.writeText(
+          JSON.stringify(debug, null, 2)
+        );
+
+        const btn =
+          panel.querySelector(".sw-copy-debug");
+
+        btn.textContent = "Copied";
+
+        setTimeout(() => {
+          btn.textContent = "Copy Debug";
+        }, 1200);
+      } catch (error) {
+        console.error("[SW] Clipboard failed", error);
       }
     };
   }
 
   function renderError(panel, error) {
+    const debug =
+      error?.__swDebug || {
+        swVersion: SW.VERSION,
+        pageOrigin: location.origin,
+        pageUrl: location.href,
+        domain: currentDomain(),
+        apiUrl:
+          `${SW.API_URL}?domain=${encodeURIComponent(currentDomain())}`,
+        extensionVersion: SW.EXTENSION_VERSION,
+        name: error?.name || "",
+        message: error?.message || String(error)
+      };
+
     panel.querySelector(".sw-body").innerHTML = `
       <div class="sw-error">
         <strong>Similarweb request failed</strong>
 
         ${esc(error?.message || String(error))}
+
+        <div class="sw-debug">${esc(
+          JSON.stringify(debug, null, 2)
+        )}</div>
+
+        <div class="sw-bottom">
+          <button class="sw-copy-debug">
+            Copy Debug
+          </button>
+        </div>
       </div>
     `;
-  }
 
-  /* =========================================================
-     MAIN
-  ========================================================= */
+    panel.querySelector(".sw-copy-debug").onclick =
+      async () => {
+        try {
+          await navigator.clipboard.writeText(
+            JSON.stringify(debug, null, 2)
+          );
+
+          const btn =
+            panel.querySelector(".sw-copy-debug");
+
+          btn.textContent = "Copied";
+
+          setTimeout(() => {
+            btn.textContent = "Copy Debug";
+          }, 1200);
+        } catch (clipboardError) {
+          console.error(
+            "[SW] Clipboard failed",
+            clipboardError
+          );
+        }
+      };
+  }
 
   async function run() {
     const domain = currentDomain();
+
+    console.log(
+      `[SW] Loaded ${SW.VERSION} on ${location.href}`
+    );
 
     if (!domain) {
       alert("SW: domain not found");
@@ -994,13 +1034,14 @@
 
         render(panel, data);
 
-        console.log("[SW]", {
+        console.log("[SW] SUCCESS", {
           version: SW.VERSION,
           domain,
           data
         });
+
       } catch (error) {
-        console.error("[SW]", error);
+        console.error("[SW] ERROR", error);
         renderError(panel, error);
       }
     };
