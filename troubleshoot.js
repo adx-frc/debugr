@@ -5,6 +5,7 @@
   const HIGHLIGHT_ID = "__debugr_slot_highlight__";
 
   const old = document.getElementById(APP_ID);
+
   if (old) {
     old.remove();
 
@@ -29,18 +30,21 @@
     tcDataLoaded: false
   };
 
-  const host = document.createElement("div");
+  const host =
+    document.createElement("div");
 
   host.id = APP_ID;
 
   host.style.cssText =
     "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
 
-  document.documentElement.appendChild(host);
+  document.documentElement
+    .appendChild(host);
 
-  const root = host.attachShadow({
-    mode: "open"
-  });
+  const root =
+    host.attachShadow({
+      mode: "open"
+    });
 
   root.innerHTML = `
     <style>
@@ -56,9 +60,18 @@
         position: fixed;
         top: 12px;
         right: 12px;
-        width: min(640px, calc(100vw - 24px));
-        max-height: calc(100vh - 24px);
+
+        width:
+          min(
+            640px,
+            calc(100vw - 24px)
+          );
+
+        max-height:
+          calc(100vh - 24px);
+
         overflow: hidden;
+
         pointer-events: auto;
 
         font-family:
@@ -78,12 +91,14 @@
           rgba(15, 21, 30, 0.78);
 
         border:
-          1px solid rgba(100, 120, 145, 0.58);
+          1px solid
+          rgba(100,120,145,.58);
 
         border-radius: 14px;
 
         box-shadow:
-          0 18px 60px rgba(0,0,0,.50);
+          0 18px 60px
+          rgba(0,0,0,.50);
 
         backdrop-filter:
           blur(7px);
@@ -95,15 +110,18 @@
       .header {
         display: flex;
         align-items: center;
+
         gap: 9px;
 
-        padding: 11px 12px;
+        padding:
+          11px 12px;
 
         background:
-          rgba(22, 30, 41, 0.82);
+          rgba(22,30,41,.82);
 
         border-bottom:
-          1px solid rgba(90, 110, 135, 0.45);
+          1px solid
+          rgba(90,110,135,.45);
       }
 
       .title {
@@ -113,7 +131,8 @@
 
       .pill {
         border:
-          1px solid rgba(100, 125, 155, 0.65);
+          1px solid
+          rgba(100,125,155,.65);
 
         border-radius: 999px;
 
@@ -124,7 +143,7 @@
         color: #c1ccda;
 
         background:
-          rgba(10, 15, 22, 0.35);
+          rgba(10,15,22,.35);
       }
 
       .spacer {
@@ -142,75 +161,82 @@
         color: #edf3fb;
 
         background:
-          rgba(28, 38, 51, 0.88);
+          rgba(28,38,51,.88);
 
         border:
-          1px solid rgba(90, 110, 140, 0.72);
+          1px solid
+          rgba(90,110,140,.72);
 
         border-radius: 8px;
 
-        padding: 6px 9px;
+        padding:
+          6px 9px;
       }
 
       button:hover {
         background:
-          rgba(45, 59, 78, 0.96);
+          rgba(45,59,78,.96);
       }
 
       .danger {
         background:
-          rgba(70, 26, 36, 0.88);
+          rgba(70,26,36,.88);
 
         border-color:
-          rgba(160, 60, 80, 0.75);
+          rgba(160,60,80,.75);
       }
 
       .copy-json {
         background:
-          rgba(23, 60, 50, 0.92);
+          rgba(23,60,50,.92);
 
         border-color:
-          rgba(55, 145, 115, 0.75);
+          rgba(55,145,115,.75);
       }
 
       .highlight-btn {
         background:
-          rgba(87, 62, 10, 0.92);
+          rgba(87,62,10,.92);
 
         border-color:
-          rgba(210, 155, 35, 0.85);
+          rgba(210,155,35,.85);
       }
 
       .controls {
         display: grid;
 
         grid-template-columns:
-          minmax(0, 1fr) auto;
+          minmax(0,1fr)
+          auto;
 
         gap: 8px;
 
-        padding: 9px 10px;
+        padding:
+          9px 10px;
 
         background:
-          rgba(17, 25, 35, 0.76);
+          rgba(17,25,35,.76);
 
         border-bottom:
-          1px solid rgba(90, 110, 135, 0.40);
+          1px solid
+          rgba(90,110,135,.40);
       }
 
       select {
         width: 100%;
         min-width: 0;
 
-        padding: 7px 9px;
+        padding:
+          7px 9px;
 
         color: #edf3fb;
 
         background:
-          rgba(8, 14, 21, 0.82);
+          rgba(8,14,21,.82);
 
         border:
-          1px solid rgba(85, 105, 135, 0.72);
+          1px solid
+          rgba(85,105,135,.72);
 
         border-radius: 8px;
       }
@@ -224,10 +250,11 @@
           0 10px 9px 10px;
 
         background:
-          rgba(17, 25, 35, 0.76);
+          rgba(17,25,35,.76);
 
         border-bottom:
-          1px solid rgba(90, 110, 135, 0.40);
+          1px solid
+          rgba(90,110,135,.40);
 
         flex-wrap: wrap;
       }
@@ -247,46 +274,53 @@
         overflow: hidden;
 
         background:
-          rgba(17, 25, 35, 0.73);
+          rgba(17,25,35,.73);
 
         border:
-          1px solid rgba(80, 100, 125, 0.48);
+          1px solid
+          rgba(80,100,125,.48);
 
         border-radius: 10px;
       }
 
       .section-title {
-        padding: 7px 10px;
+        padding:
+          7px 10px;
 
         font-size: 11px;
         font-weight: 800;
 
         letter-spacing: .7px;
 
-        text-transform: uppercase;
+        text-transform:
+          uppercase;
 
         color: #b5c1d0;
 
         background:
-          rgba(24, 33, 45, 0.85);
+          rgba(24,33,45,.85);
 
         border-bottom:
-          1px solid rgba(80, 100, 125, 0.45);
+          1px solid
+          rgba(80,100,125,.45);
       }
 
       .grid {
         display: grid;
 
         grid-template-columns:
-          158px minmax(0,1fr);
+          158px
+          minmax(0,1fr);
       }
 
       .k,
       .v {
-        padding: 7px 9px;
+        padding:
+          7px 9px;
 
         border-bottom:
-          1px solid rgba(65, 80, 100, 0.38);
+          1px solid
+          rgba(65,80,100,.38);
       }
 
       .k {
@@ -296,7 +330,8 @@
       .v {
         color: #eef4fb;
 
-        overflow-wrap: anywhere;
+        overflow-wrap:
+          anywhere;
 
         user-select: text;
       }
@@ -335,38 +370,92 @@
         color: #8997a8;
       }
 
-      .mono {
-        font-family:
-          ui-monospace,
-          SFMono-Regular,
-          Menlo,
-          Monaco,
-          Consolas,
-          monospace;
+      .copy {
+        padding:
+          2px 6px;
+
+        margin-left:
+          5px;
+
+        font-size:
+          10px;
+      }
+
+      .link {
+        color: #83b5ff;
+
+        text-decoration:
+          none;
+
+        font-weight: 650;
+      }
+
+      .link:hover {
+        text-decoration:
+          underline;
+      }
+
+      .id-link {
+        color: #eef4fb;
+
+        text-decoration:
+          none;
+
+        border-bottom:
+          1px dotted
+          rgba(131,181,255,.7);
+      }
+
+      .id-link:hover {
+        color: #83b5ff;
+      }
+
+      .open-link {
+        display: inline-block;
+
+        margin-top: 3px;
+
+        color: #83b5ff;
+
+        text-decoration:
+          none;
+
+        font-size:
+          11px;
+      }
+
+      .open-link:hover {
+        text-decoration:
+          underline;
       }
 
       .bidtable {
         width: 100%;
 
-        border-collapse: collapse;
+        border-collapse:
+          collapse;
       }
 
       .bidtable th,
       .bidtable td {
-        padding: 7px 8px;
+        padding:
+          7px 8px;
 
-        text-align: left;
-        vertical-align: top;
+        text-align:
+          left;
+
+        vertical-align:
+          top;
 
         border-bottom:
-          1px solid rgba(65, 80, 100, 0.38);
+          1px solid
+          rgba(65,80,100,.38);
       }
 
       .bidtable th {
         color: #96a5b8;
 
         font-size: 11px;
-
         font-weight: 650;
       }
 
@@ -376,25 +465,7 @@
 
       .winner-row {
         background:
-          rgba(53, 201, 175, .10);
-      }
-
-      .copy {
-        padding: 2px 6px;
-
-        margin-left: 5px;
-
-        font-size: 10px;
-      }
-
-      .link {
-        color: #83b5ff;
-
-        text-decoration: none;
-      }
-
-      .link:hover {
-        text-decoration: underline;
+          rgba(53,201,175,.10);
       }
 
       .empty {
@@ -407,20 +478,23 @@
 
       details {
         background:
-          rgba(8, 14, 21, 0.48);
+          rgba(8,14,21,.48);
       }
 
       summary {
         cursor: pointer;
 
-        padding: 9px 10px;
+        padding:
+          9px 10px;
 
-        font-weight: 700;
+        font-weight:
+          700;
 
-        color: #b6c1cf;
+        color:
+          #b6c1cf;
 
         background:
-          rgba(24, 33, 45, 0.75);
+          rgba(24,33,45,.75);
       }
 
       pre {
@@ -432,9 +506,11 @@
 
         overflow: auto;
 
-        white-space: pre-wrap;
+        white-space:
+          pre-wrap;
 
-        word-break: break-word;
+        word-break:
+          break-word;
 
         color: #d8e0eb;
 
@@ -450,25 +526,32 @@
       }
 
       .ignored {
-        padding: 8px 10px;
+        padding:
+          8px 10px;
 
-        color: #8f9bad;
+        color:
+          #8f9bad;
 
-        font-size: 11px;
+        font-size:
+          11px;
       }
 
       .footer {
-        padding: 7px 10px;
+        padding:
+          7px 10px;
 
         border-top:
-          1px solid rgba(90, 110, 135, 0.40);
+          1px solid
+          rgba(90,110,135,.40);
 
-        color: #91a0b2;
+        color:
+          #91a0b2;
 
-        font-size: 11px;
+        font-size:
+          11px;
 
         background:
-          rgba(17, 25, 35, 0.78);
+          rgba(17,25,35,.78);
       }
 
       @media (max-width: 650px) {
@@ -485,7 +568,8 @@
 
         .grid {
           grid-template-columns:
-            125px minmax(0,1fr);
+            125px
+            minmax(0,1fr);
         }
 
         .body {
@@ -593,22 +677,10 @@
     return String(
       value ?? ""
     )
-      .replace(
-        /&/g,
-        "&amp;"
-      )
-      .replace(
-        /</g,
-        "&lt;"
-      )
-      .replace(
-        />/g,
-        "&gt;"
-      )
-      .replace(
-        /"/g,
-        "&quot;"
-      );
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function stringify(value) {
@@ -619,9 +691,7 @@
         2
       );
     } catch (_) {
-      return String(
-        value
-      );
+      return String(value);
     }
   }
 
@@ -650,49 +720,36 @@
     if (n >= 1) {
       out =
         n.toFixed(2);
-    } else if (
-      n >= 0.01
-    ) {
+    } else if (n >= 0.01) {
       out =
         n
           .toFixed(3)
-          .replace(
-            /0+$/,
-            ""
-          )
-          .replace(
-            /\.$/,
-            ""
-          );
+          .replace(/0+$/, "")
+          .replace(/\.$/, "");
     } else {
       out =
         n
           .toFixed(4)
-          .replace(
-            /0+$/,
-            ""
-          )
-          .replace(
-            /\.$/,
-            ""
-          );
+          .replace(/0+$/, "")
+          .replace(/\.$/, "");
     }
 
-    return `${out} ${currency || ""}`
-      .trim();
+    return (
+      `${out} ${currency || ""}`
+        .trim()
+    );
   }
 
   function kv(
     key,
-    value,
-    cls = ""
+    value
   ) {
     return `
       <div class="k">
         ${esc(key)}
       </div>
 
-      <div class="v ${cls}">
+      <div class="v">
         ${value}
       </div>
     `;
@@ -818,7 +875,8 @@
   ) {
     const match =
       String(
-        adUnitPath || ""
+        adUnitPath ||
+        ""
       ).match(
         /^\/(\d+)\//
       );
@@ -1045,10 +1103,7 @@
     }
 
     decoded
-      .replace(
-        /^\?/,
-        ""
-      )
+      .replace(/^\?/, "")
       .split("&")
       .forEach(
         part => {
@@ -1181,7 +1236,8 @@
     parsed
   ) {
     const p =
-      parsed.params || {};
+      parsed.params ||
+      {};
 
     if (p.iu) {
       try {
@@ -1219,10 +1275,12 @@
     slotData
   ) {
     const p =
-      parsed.params || {};
+      parsed.params ||
+      {};
 
     const prev =
-      parsed.prevScp || {};
+      parsed.prevScp ||
+      {};
 
     const divId =
       String(
@@ -1272,7 +1330,8 @@
     if (
       requestPath &&
       path &&
-      requestPath === path
+      requestPath ===
+        path
     ) {
       return {
         matched: true,
@@ -1510,9 +1569,8 @@
             key => {
               if (
                 /^hb/i.test(key) ||
-                /header.?bid/i.test(
-                  key
-                )
+                /header.?bid/i
+                  .test(key)
               ) {
                 evidence.push({
                   source,
@@ -1541,8 +1599,10 @@
       evidence.push({
         source:
           "GAM request",
+
         key:
           "hbRequest",
+
         value:
           true
       });
@@ -1554,8 +1614,10 @@
       evidence.push({
         source:
           "runtime",
+
         key:
           "pbjs",
+
         value:
           true
       });
@@ -1643,8 +1705,10 @@
               bid => {
                 bids.push({
                   ...bid,
+
                   __source:
                     "pbjs",
+
                   __adUnitCode:
                     bid.adUnitCode ||
                     adUnitCode
@@ -1781,7 +1845,8 @@
             bucket:
               bid.adserverTargeting
                 ? (
-                    bid.adserverTargeting.hb_pb ||
+                    bid.adserverTargeting
+                      .hb_pb ||
                     ""
                   )
                 : "",
@@ -1815,6 +1880,79 @@
         }
       );
 
+    const targeting =
+      slotData.targeting ||
+      {};
+
+    const targetBidder =
+      firstTarget(
+        targeting,
+        "hb_bidder"
+      );
+
+    const targetBucket =
+      firstTarget(
+        targeting,
+        "hb_pb"
+      );
+
+    const targetAdId =
+      firstTarget(
+        targeting,
+        "hb_adid"
+      );
+
+    const targetSize =
+      firstTarget(
+        targeting,
+        "hb_size"
+      );
+
+    if (
+      targetBidder
+    ) {
+      const exists =
+        bids.some(
+          bid =>
+            bid.bidder ===
+            targetBidder
+        );
+
+      if (!exists) {
+        bids.push({
+          bidder:
+            targetBidder,
+
+          cpm:
+            null,
+
+          currency:
+            "USD",
+
+          bucket:
+            targetBucket ||
+            "",
+
+          size:
+            targetSize ||
+            "",
+
+          adId:
+            targetAdId ||
+            "",
+
+          responseTime:
+            null,
+
+          status:
+            "Slot targeting",
+
+          source:
+            "GPT targeting"
+        });
+      }
+    }
+
     if (
       slotData.hbRequest &&
       slotData.hbRequest.bidder
@@ -1826,7 +1964,9 @@
         bids.some(
           bid =>
             bid.bidder ===
-            hr.bidder
+            hr.bidder &&
+            bid.bucket ===
+            hr.bucket
         );
 
       if (!exists) {
@@ -1864,10 +2004,18 @@
     return bids.sort(
       (a, b) =>
         (
-          b.cpm ?? -1
+          b.cpm ??
+          safeNumber(
+            b.bucket
+          ) ??
+          -1
         ) -
         (
-          a.cpm ?? -1
+          a.cpm ??
+          safeNumber(
+            a.bucket
+          ) ??
+          -1
         )
     );
   }
@@ -1878,7 +2026,8 @@
     const out = {};
 
     Object.keys(
-      targeting || {}
+      targeting ||
+      {}
     ).forEach(
       key => {
         if (
@@ -2300,8 +2449,16 @@
 
     if (
       slotData.hbDetected &&
-      slotData.hbRequest &&
-      slotData.hbRequest.bidder
+      (
+        firstTarget(
+          slotData.targeting,
+          "hb_bidder"
+        ) ||
+        (
+          slotData.hbRequest &&
+          slotData.hbRequest.bidder
+        )
+      )
     ) {
       return {
         label:
@@ -2314,7 +2471,7 @@
           "hb",
 
         reason:
-          "HB bidder sent to GAM"
+          "HB winner targeting detected"
       };
     }
 
@@ -2331,6 +2488,77 @@
       reason:
         "No decisive winner signal"
     };
+  }
+
+  function buildLineItemUrl(
+    slotData,
+    lineItemId
+  ) {
+    if (
+      !slotData.networkCode ||
+      !lineItemId ||
+      Number(lineItemId) <= 0
+    ) {
+      return "";
+    }
+
+    return (
+      "https://admanager.google.com/" +
+      encodeURIComponent(
+        slotData.networkCode
+      ) +
+      "#delivery/line_item/detail/line_item_id=" +
+      encodeURIComponent(
+        lineItemId
+      ) +
+      "&line_item=true&li_tab=settings"
+    );
+  }
+
+  function buildAdvertiserUrl(
+    slotData,
+    advertiserId
+  ) {
+    if (
+      !slotData.networkCode ||
+      !advertiserId
+    ) {
+      return "";
+    }
+
+    return (
+      "https://admanager.google.com/" +
+      encodeURIComponent(
+        slotData.networkCode
+      ) +
+      "#admin/company/detail/company_id=" +
+      encodeURIComponent(
+        advertiserId
+      )
+    );
+  }
+
+  function buildOrderUrl(
+    slotData,
+    orderId
+  ) {
+    if (
+      !slotData.networkCode ||
+      !orderId
+    ) {
+      return "";
+    }
+
+    return (
+      "https://admanager.google.com/" +
+      encodeURIComponent(
+        slotData.networkCode
+      ) +
+      "#delivery/order/order_overview/order_id=" +
+      encodeURIComponent(
+        orderId
+      )
+    );
   }
 
   function buildTroubleshootingUrl(
@@ -2353,6 +2581,55 @@
         slotData.ids.queryId
       )
     );
+  }
+
+  function linkedId(
+    value,
+    url,
+    label
+  ) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return `
+        <span class="muted">
+          Not available
+        </span>
+      `;
+    }
+
+    if (!url) {
+      return `
+        ${esc(value)}
+        ${copyButton(value)}
+      `;
+    }
+
+    return `
+      <a
+        class="id-link"
+        href="${esc(url)}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        ${esc(value)}
+      </a>
+
+      ${copyButton(value)}
+
+      <br>
+
+      <a
+        class="open-link"
+        href="${esc(url)}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Open ${esc(label)} in GAM ↗
+      </a>
+    `;
   }
 
   function highlightSelectedSlot() {
@@ -2448,9 +2725,10 @@
             "box-shadow:0 2px 8px rgba(0,0,0,.35)"
           ].join(";");
 
-          overlay.appendChild(
-            label
-          );
+          overlay
+            .appendChild(
+              label
+            );
 
           document.documentElement
             .appendChild(
@@ -2497,7 +2775,7 @@
     const rows =
       bids.map(
         (bid, index) => {
-          const price =
+          const exactPrice =
             bid.cpm !== null
               ? money(
                   bid.cpm,
@@ -2525,16 +2803,14 @@
 
           return `
             <tr class="${
-              index === 0 &&
-              bid.cpm !== null
+              index === 0
                 ? "winner-row"
                 : ""
             }">
 
               <td>
                 ${
-                  index === 0 &&
-                  bid.cpm !== null
+                  index === 0
                     ? "★ "
                     : ""
                 }
@@ -2545,11 +2821,15 @@
               </td>
 
               <td>
-                ${esc(price)}
+                ${esc(
+                  exactPrice
+                )}
               </td>
 
               <td>
-                ${esc(bucket)}
+                ${esc(
+                  bucket
+                )}
               </td>
 
               <td>
@@ -2560,7 +2840,9 @@
               </td>
 
               <td>
-                ${esc(response)}
+                ${esc(
+                  response
+                )}
               </td>
 
             </tr>
@@ -2574,7 +2856,7 @@
         <thead>
           <tr>
             <th>Bidder</th>
-            <th>Bid</th>
+            <th>Exact bid</th>
             <th>GAM bucket</th>
             <th>Size</th>
             <th>Response</th>
@@ -2597,6 +2879,9 @@
 
     const request =
       slotData.bestRequest;
+
+    const ids =
+      slotData.ids;
 
     return {
       debugr: {
@@ -2675,12 +2960,38 @@
           slotData.winner,
 
         ids:
-          slotData.ids,
+          ids,
 
         isBackfill:
           slotData.response
-            ? slotData.response.isBackfill
-            : null
+            ? slotData.response
+                .isBackfill
+            : null,
+
+        gamLinks: {
+          lineItem:
+            buildLineItemUrl(
+              slotData,
+              ids.lineItemId
+            ),
+
+          advertiser:
+            buildAdvertiserUrl(
+              slotData,
+              ids.advertiserId
+            ),
+
+          order:
+            buildOrderUrl(
+              slotData,
+              ids.orderId
+            ),
+
+          troubleshooting:
+            buildTroubleshootingUrl(
+              slotData
+            )
+        }
       },
 
       gpt: {
@@ -2820,10 +3131,14 @@
         originalIndex
       ) => {
         const divId =
-          getSlotDivId(slot);
+          getSlotDivId(
+            slot
+          );
 
         const adUnitPath =
-          getAdUnitPath(slot);
+          getAdUnitPath(
+            slot
+          );
 
         const oop =
           isOutOfPage(
@@ -2850,6 +3165,7 @@
             originalIndex,
             adUnitPath,
             divId,
+
             reason:
               !divId
                 ? "No DIV ID"
@@ -2860,10 +3176,14 @@
         }
 
         const targeting =
-          getTargeting(slot);
+          getTargeting(
+            slot
+          );
 
         const response =
-          getResponseInfo(slot);
+          getResponseInfo(
+            slot
+          );
 
         const data = {
           originalIndex,
@@ -2905,7 +3225,8 @@
         data.hbDetected =
           Boolean(
             data.hbRequest ||
-            data.hbWrapperEvidence.length
+            data.hbWrapperEvidence
+              .length
           );
 
         data.hbBids =
@@ -2974,7 +3295,8 @@
         ? `Hide ignored (${state.ignored.length})`
         : `Ignored: ${state.ignored.length}`;
 
-    select.innerHTML = "";
+    select.innerHTML =
+      "";
 
     state.slots.forEach(
       (
@@ -3005,7 +3327,8 @@
       state.selected >=
       state.slots.length
     ) {
-      state.selected = 0;
+      state.selected =
+        0;
     }
 
     select.value =
@@ -3038,7 +3361,25 @@
     const consent =
       s.consent;
 
-    const trUrl =
+    const lineItemUrl =
+      buildLineItemUrl(
+        s,
+        ids.lineItemId
+      );
+
+    const advertiserUrl =
+      buildAdvertiserUrl(
+        s,
+        ids.advertiserId
+      );
+
+    const orderUrl =
+      buildOrderUrl(
+        s,
+        ids.orderId
+      );
+
+    const troubleshootingUrl =
       buildTroubleshootingUrl(
         s
       );
@@ -3046,28 +3387,42 @@
     const winnerRows = [
       kv(
         "Winner",
-        `<span class="${s.winner.cls}">
-          ${esc(
-            s.winner.label
-          )}
-        </span>`
+        `
+          <span class="${s.winner.cls}">
+            ${esc(
+              s.winner.label
+            )}
+          </span>
+        `
       )
     ];
+
+    const winnerBidder =
+      firstTarget(
+        s.targeting,
+        "hb_bidder"
+      ) ||
+      (
+        s.hbRequest &&
+        s.hbRequest.bidder
+      ) ||
+      "";
 
     if (
       s.winner.type ===
         "hb" &&
-      s.hbRequest &&
-      s.hbRequest.bidder
+      winnerBidder
     ) {
       winnerRows.push(
         kv(
           "Bidder",
-          `<span class="hb">
-            ${esc(
-              s.hbRequest.bidder
-            )}
-          </span>`
+          `
+            <span class="hb">
+              ${esc(
+                winnerBidder
+              )}
+            </span>
+          `
         )
       );
     }
@@ -3080,24 +3435,28 @@
       winnerRows.push(
         kv(
           "Backfill",
-          `<span class="yes">
-            YES
-          </span>`
+          `
+            <span class="yes">
+              YES
+            </span>
+          `
         )
       );
     }
 
     if (
-      ids.lineItemId !== null
+      ids.lineItemId !== null &&
+      Number(ids.lineItemId) >
+        0
     ) {
       winnerRows.push(
         kv(
           "Line item ID",
-          `${esc(
-            ids.lineItemId
-          )}${copyButton(
-            ids.lineItemId
-          )}`
+          linkedId(
+            ids.lineItemId,
+            lineItemUrl,
+            "line item"
+          )
         )
       );
     }
@@ -3108,73 +3467,97 @@
       winnerRows.push(
         kv(
           "Creative ID",
-          `${esc(
-            ids.creativeId
-          )}${copyButton(
-            ids.creativeId
-          )}`
+          `
+            ${esc(
+              ids.creativeId
+            )}
+
+            ${copyButton(
+              ids.creativeId
+            )}
+          `
         )
       );
     }
 
     if (
       ids.sourceAgnosticLineItemId !==
-        null
+        null &&
+      (
+        ids.lineItemId === null ||
+        ids.sourceAgnosticLineItemId !==
+          ids.lineItemId
+      )
     ) {
       winnerRows.push(
         kv(
           "Source Line Item ID",
-          `${esc(
-            ids.sourceAgnosticLineItemId
-          )}${copyButton(
-            ids.sourceAgnosticLineItemId
-          )}`
+          `
+            ${esc(
+              ids.sourceAgnosticLineItemId
+            )}
+
+            ${copyButton(
+              ids.sourceAgnosticLineItemId
+            )}
+          `
         )
       );
     }
 
     if (
       ids.sourceAgnosticCreativeId !==
-        null
+        null &&
+      (
+        ids.creativeId === null ||
+        ids.sourceAgnosticCreativeId !==
+          ids.creativeId
+      )
     ) {
       winnerRows.push(
         kv(
           "Source Creative ID",
-          `${esc(
-            ids.sourceAgnosticCreativeId
-          )}${copyButton(
-            ids.sourceAgnosticCreativeId
-          )}`
+          `
+            ${esc(
+              ids.sourceAgnosticCreativeId
+            )}
+
+            ${copyButton(
+              ids.sourceAgnosticCreativeId
+            )}
+          `
         )
       );
     }
 
     if (
-      ids.advertiserId !== null
+      ids.advertiserId !==
+        null
     ) {
       winnerRows.push(
         kv(
           "Advertiser ID",
-          `${esc(
-            ids.advertiserId
-          )}${copyButton(
-            ids.advertiserId
-          )}`
+          linkedId(
+            ids.advertiserId,
+            advertiserUrl,
+            "advertiser"
+          )
         )
       );
     }
 
     if (
-      ids.orderId !== null
+      ids.orderId !==
+        null
     ) {
       winnerRows.push(
         kv(
           "Order ID",
-          `${esc(
-            ids.orderId
-          )}${copyButton(
-            ids.orderId
-          )}`
+          linkedId(
+            ids.orderId,
+            orderUrl,
+            "order"
+          )
         )
       );
     }
@@ -3183,22 +3566,16 @@
       kv(
         "Query ID",
         ids.queryId
-          ? `
-            ${esc(
-              ids.queryId
-            )}
-            ${copyButton(
-              ids.queryId
-            )}
-            ${
-              trUrl
-                ? `<br><a class="link" href="${esc(trUrl)}" target="_blank">Open in GAM Troubleshooting ↗</a>`
-                : ""
-            }
-          `
-          : `<span class="muted">
-              Not available
-            </span>`
+          ? linkedId(
+              ids.queryId,
+              troubleshootingUrl,
+              "Troubleshooting"
+            )
+          : `
+              <span class="muted">
+                Not available
+              </span>
+            `
       )
     );
 
@@ -3213,41 +3590,64 @@
       kv(
         "Bid data",
         s.hbBids.length
-          ? `<span class="yes">AVAILABLE</span>`
+          ? `
+              <span class="yes">
+                AVAILABLE
+              </span>
+            `
           : (
               s.hbDetected
-                ? `<span class="warn">NOT EXPOSED</span>`
-                : `<span class="no">NO</span>`
+                ? `
+                    <span class="warn">
+                      NOT EXPOSED
+                    </span>
+                  `
+                : `
+                    <span class="no">
+                      NO
+                    </span>
+                  `
             )
       )
     ];
 
     if (
-      s.hbRequest &&
-      s.hbRequest.bidder
+      winnerBidder
     ) {
       hbRows.push(
         kv(
           "Bidder sent to GAM",
-          `<span class="hb">
-            ${esc(
-              s.hbRequest.bidder
-            )}
-          </span>`
+          `
+            <span class="hb">
+              ${esc(
+                winnerBidder
+              )}
+            </span>
+          `
         )
       );
     }
 
+    const targetBucket =
+      firstTarget(
+        s.targeting,
+        "hb_pb"
+      ) ||
+      (
+        s.hbRequest &&
+        s.hbRequest.bucket
+      ) ||
+      "";
+
     if (
-      s.hbRequest &&
-      s.hbRequest.bucket !== ""
+      targetBucket !== ""
     ) {
       hbRows.push(
         kv(
           "GAM price bucket",
           esc(
             money(
-              s.hbRequest.bucket,
+              targetBucket,
               "USD"
             )
           )
@@ -3266,22 +3666,34 @@
 
           ${kv(
             "Ad unit",
-            `${esc(
-              s.adUnitPath
-            )}${copyButton(
-              s.adUnitPath
-            )}`
+            `
+              ${esc(
+                s.adUnitPath
+              )}
+
+              ${copyButton(
+                s.adUnitPath
+              )}
+            `
           )}
 
           ${kv(
             "DIV",
             s.oop
-              ? `<span class="hb">OUT OF PAGE</span>`
-              : `${esc(
-                  s.divId
-                )}${copyButton(
-                  s.divId
-                )}`
+              ? `
+                  <span class="hb">
+                    OUT OF PAGE
+                  </span>
+                `
+              : `
+                  ${esc(
+                    s.divId
+                  )}
+
+                  ${copyButton(
+                    s.divId
+                  )}
+                `
           )}
 
           ${kv(
@@ -3302,8 +3714,16 @@
           ${kv(
             "GAM request",
             s.bestRequest
-              ? `<span class="yes">YES</span>`
-              : `<span class="warn">NOT MATCHED</span>`
+              ? `
+                  <span class="yes">
+                    YES
+                  </span>
+                `
+              : `
+                  <span class="warn">
+                    NOT MATCHED
+                  </span>
+                `
           )}
 
         </div>
@@ -3370,7 +3790,11 @@
             "Consent string",
             consent.consentString ===
               null
-              ? `<span class="muted">UNKNOWN</span>`
+              ? `
+                  <span class="muted">
+                    UNKNOWN
+                  </span>
+                `
               : yesNo(
                   consent.consentString
                 )
@@ -3404,7 +3828,11 @@
             "GPP",
             consent.gpp ===
               null
-              ? `<span class="muted">UNKNOWN</span>`
+              ? `
+                  <span class="muted">
+                    UNKNOWN
+                  </span>
+                `
               : yesNo(
                   consent.gpp
                 )
@@ -3496,7 +3924,8 @@
         `Winner ${s.winner.label}`,
         `HB ${s.hbDetected ? "✓" : "✕"}`,
         `Request ${s.bestRequest ? "✓" : "✕"}`
-      ].join(" · ");
+      ]
+        .join(" · ");
   }
 
   function bindCopyButtons() {
@@ -3564,19 +3993,20 @@
     collectSlots();
 
     const index =
-      state.slots.findIndex(
-        slot =>
-          (
-            previousDiv &&
-            slot.divId ===
-              previousDiv
-          ) ||
-          (
-            previousPath &&
-            slot.adUnitPath ===
-              previousPath
-          )
-      );
+      state.slots
+        .findIndex(
+          slot =>
+            (
+              previousDiv &&
+              slot.divId ===
+                previousDiv
+            ) ||
+            (
+              previousPath &&
+              slot.adUnitPath ===
+                previousPath
+            )
+        );
 
     if (
       index >= 0
