@@ -1,10 +1,6 @@
 (function () {
   if (window.top !== window.self) return;
 
-  // =========================================================
-  // REOPEN EXISTING DEBUGR
-  // =========================================================
-
   if (window.__QAI_v10) {
     const existingPanel = document.getElementById('qai-panel');
     const existingIcon = document.getElementById('qai-collapsed');
@@ -30,9 +26,7 @@
 
   window.__QAI_v10 = true;
 
-  // =========================================================
-  // HELPERS
-  // =========================================================
+  // ---------- small helpers
 
   const esc = s =>
     String(s ?? '')
@@ -70,9 +64,7 @@
       return 'auto';
     }
 
-    const st =
-      (el.getAttribute('style') || '')
-        .toLowerCase();
+    const st = (el.getAttribute('style') || '').toLowerCase();
 
     const w = (
       /width:\s*([\d.]+)px/.exec(st) || []
@@ -86,11 +78,8 @@
       return `${Math.round(+w)}x${Math.round(+h)}`;
     }
 
-    const aw =
-      el.getAttribute('width');
-
-    const ah =
-      el.getAttribute('height');
+    const aw = el.getAttribute('width');
+    const ah = el.getAttribute('height');
 
     if (aw && ah) {
       return `${aw}x${ah}`;
@@ -101,36 +90,26 @@
 
   function ensurePositioned(el) {
     try {
-      const cs =
-        window.getComputedStyle(el);
+      const cs = window.getComputedStyle(el);
 
-      if (
-        cs &&
-        cs.position === 'static'
-      ) {
+      if (cs && cs.position === 'static') {
         el.style.position = 'relative';
       }
     } catch {}
   }
 
-  // =========================================================
-  // HEADER BIDDING
-  // =========================================================
+  // ---------- HEADER BIDDING DETECTION
 
   function detectHB(targeting) {
-    const targetingObj =
-      targeting || {};
-
-    const keys =
-      Object.keys(targetingObj);
+    const targetingObj = targeting || {};
+    const keys = Object.keys(targetingObj);
 
     const prebidKeys = [];
     const amazonKeys = [];
     const otherHbKeys = [];
 
     keys.forEach(key => {
-      const lower =
-        String(key).toLowerCase();
+      const lower = String(key).toLowerCase();
 
       if (
         lower === 'hb_bidder' ||
@@ -226,10 +205,9 @@
 
   function hbBadgeHTML(hb) {
     if (hb?.active) {
-      const label =
-        hb.engines?.length
-          ? hb.engines.join(' + ')
-          : 'HB';
+      const label = hb.engines?.length
+        ? hb.engines.join(' + ')
+        : 'HB';
 
       return `
         <span
@@ -276,57 +254,12 @@
     `;
   }
 
-  function noDivBadgeHTML() {
-    return `
-      <span
-        title="No matching DOM element exists for this SlotElementId"
-        style="
-          display:inline-block;
-          padding:2px 6px;
-          border-radius:5px;
-          background:#fff0d8;
-          border:1px solid #e3a44a;
-          color:#9a5600;
-          font-weight:700;
-          white-space:nowrap;
-        "
-      >
-        NO DIV
-      </span>
-    `;
-  }
-
-  function oopBadgeHTML() {
-    return `
-      <span
-        title="Out-of-page / special format. A normal matching DIV is not required."
-        style="
-          display:inline-block;
-          padding:2px 6px;
-          border-radius:5px;
-          background:#e8e5ff;
-          border:1px solid #aaa0df;
-          color:#493c92;
-          font-weight:700;
-          white-space:nowrap;
-        "
-      >
-        OOP
-      </span>
-    `;
-  }
-
-  // =========================================================
-  // SLOT BADGE + OVERLAY
-  // =========================================================
+  // ---------- slot badge + overlay on physical slot
 
   function addBadge(el, num) {
     if (!el) return;
 
-    const old =
-      el.querySelector?.(
-        '.qai-slot-badge'
-      );
+    const old = el.querySelector?.('.qai-slot-badge');
 
     if (old) {
       old.remove();
@@ -334,14 +267,10 @@
 
     ensurePositioned(el);
 
-    const b =
-      document.createElement('div');
+    const b = document.createElement('div');
 
-    b.className =
-      'qai-slot-badge';
-
-    b.textContent =
-      String(num);
+    b.className = 'qai-slot-badge';
+    b.textContent = String(num);
 
     b.style.cssText = [
       'position:absolute',
@@ -359,33 +288,22 @@
       'opacity:0.9',
       'box-shadow:0 0 2px rgba(0,0,0,0.3)',
       'pointer-events:none',
-      'z-index:2147483647'
+      'z-index:2147483600'
     ].join(';');
 
-    const r =
-      rectSize(el);
+    const r = rectSize(el);
 
-    if (
-      r.h &&
-      r.h < 50
-    ) {
+    if (r.h && r.h < 50) {
       b.style.bottom = '6px';
     }
 
     el.appendChild(b);
   }
 
-  function addSlotOverlay(
-    el,
-    num,
-    lines
-  ) {
+  function addSlotOverlay(el, num, lines) {
     if (!el) return;
 
-    const old =
-      el.querySelector?.(
-        '.qai-slot-overlay'
-      );
+    const old = el.querySelector?.('.qai-slot-overlay');
 
     if (old) {
       old.remove();
@@ -393,72 +311,56 @@
 
     ensurePositioned(el);
 
-    const o =
-      document.createElement('div');
+    const o = document.createElement('div');
 
-    o.className =
-      'qai-slot-overlay';
+    o.className = 'qai-slot-overlay';
 
     o.style.cssText = [
       'position:absolute',
       'left:3px',
       'bottom:2px',
       'max-width:70%',
-      'background:rgba(255,235,175,0.72)',
-      'backdrop-filter:blur(6px)',
-      '-webkit-backdrop-filter:blur(6px)',
-      'border:1px solid rgba(91,61,138,0.25)',
+      'background:rgba(255,235,175,0.48)',
+      'border:1px solid rgba(91,61,138,0.22)',
       'border-radius:8px',
       'padding:4px 6px',
       'font:11px Arial,sans-serif',
       'color:#2b1e45',
-      'box-shadow:0 2px 8px rgba(0,0,0,0.15)',
+      'box-shadow:0 2px 8px rgba(0,0,0,0.12)',
       'pointer-events:none',
-      'z-index:2147483647',
+      'z-index:2147483600',
       'white-space:nowrap',
       'overflow:hidden',
       'text-overflow:ellipsis'
     ].join(';');
 
-    const safeLines =
-      (lines || []).map(esc);
+    const safeLines = (lines || []).map(esc);
 
-    o.innerHTML =
-      `<b>#${num}</b> ${safeLines.join('<br>')}`;
+    o.innerHTML = `<b>#${num}</b> ${safeLines.join('<br>')}`;
 
-    const r =
-      rectSize(el);
+    const r = rectSize(el);
 
-    if (
-      r.h &&
-      r.h < 70
-    ) {
+    if (r.h && r.h < 70) {
       o.style.bottom = '24px';
     }
 
     el.appendChild(o);
   }
 
-  // =========================================================
-  // STYLES
-  // =========================================================
+  // ---------- styles
 
-  const qaiStyle =
-    document.createElement('style');
-
-  qaiStyle.id =
-    'qai-style';
+  const qaiStyle = document.createElement('style');
 
   qaiStyle.textContent = `
     #qai-panel,
     #qai-panel * {
-      box-sizing:border-box;
+      box-sizing: border-box;
     }
 
     #qai-panel {
-      width:620px;
+      width:560px;
       max-width:calc(100vw - 20px);
-      max-height:62vh;
+      max-height:52vh;
       overflow:hidden;
     }
 
@@ -466,15 +368,20 @@
       display:flex;
       flex-direction:column;
       gap:8px;
-      max-height:calc(62vh - 44px);
+      max-height:calc(52vh - 44px);
       min-width:0;
     }
 
     #qai-top {
       flex:0 0 auto;
-      max-height:28vh;
+      max-height:22vh;
       overflow:auto;
       padding-right:4px;
+      min-width:0;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    #qai-slots {
       min-width:0;
     }
 
@@ -484,6 +391,7 @@
       max-height:none !important;
       padding-right:4px;
       min-width:0;
+      -webkit-overflow-scrolling:touch;
     }
 
     #qai-panel .qai-table {
@@ -530,7 +438,6 @@
       background:rgba(233,221,255,0.22);
       padding:4px 6px;
       border-radius:6px;
-      overflow-wrap:anywhere;
     }
 
     #qai-panel .qai-mismatch {
@@ -540,207 +447,240 @@
     #qai-panel button {
       font:inherit;
     }
+
+    @media (max-width:700px) {
+      #qai-panel {
+        position:fixed !important;
+        left:6px !important;
+        right:auto !important;
+        top:6px !important;
+
+        width:calc(100dvw - 12px) !important;
+        max-width:calc(100dvw - 12px) !important;
+
+        max-height:75dvh !important;
+
+        margin:0 !important;
+        padding:8px !important;
+
+        overflow:hidden !important;
+
+        border-radius:10px !important;
+      }
+
+      #qai-body {
+        width:100% !important;
+        max-width:100% !important;
+
+        max-height:calc(75dvh - 52px) !important;
+
+        overflow:hidden !important;
+        min-width:0 !important;
+      }
+
+      #qai-head {
+        width:100% !important;
+        max-width:100% !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-top {
+        width:100% !important;
+        max-width:100% !important;
+
+        max-height:28dvh !important;
+
+        overflow-x:auto !important;
+        overflow-y:auto !important;
+
+        padding-right:0 !important;
+
+        min-width:0 !important;
+
+        -webkit-overflow-scrolling:touch;
+      }
+
+      #qai-slots {
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+      }
+
+      #qai-panel .qai-table {
+        width:max-content !important;
+        min-width:100% !important;
+        max-width:none !important;
+
+        table-layout:auto !important;
+      }
+
+      #qai-panel .qai-table th,
+      #qai-panel .qai-table td {
+        white-space:nowrap !important;
+      }
+
+      #qai-panels {
+        width:100% !important;
+        max-width:100% !important;
+
+        overflow-x:hidden !important;
+        overflow-y:auto !important;
+
+        padding-right:0 !important;
+
+        min-width:0 !important;
+
+        -webkit-overflow-scrolling:touch;
+      }
+
+      #qai-panel .qai-det {
+        width:100% !important;
+        max-width:100% !important;
+
+        min-width:0 !important;
+
+        overflow:hidden !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel .qai-sum {
+        width:100% !important;
+        max-width:100% !important;
+
+        white-space:normal !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel .qai-det > div {
+        max-width:100% !important;
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel button {
+        min-height:30px;
+        padding:4px 8px;
+      }
+    }
   `;
 
-  (
-    document.head ||
-    document.documentElement
-  ).appendChild(qaiStyle);
+  (document.head || document.documentElement).appendChild(qaiStyle);
 
-  // =========================================================
-  // STATE
-  // =========================================================
+  // ---------- state
 
   const S = {
-    lastScan: 0,
-
-    showPH: false,
-
-    showNoDivs: false,
-
-    adsense: [],
-
-    gam: [],
-
-    hbPage: {
-      prebid: false,
-      amazon: false,
-      any: false
+    lastScan:0,
+    showPH:false,
+    adsense:[],
+    gam:[],
+    hbPage:{
+      prebid:false,
+      amazon:false,
+      any:false
     },
-
-    collapsed: false
+    collapsed:false
   };
 
-  // =========================================================
-  // ADSENSE SCANNER
-  // =========================================================
+  // ---------- scanners
 
   function scanAdsense() {
-    const list =
-      Array.from(
-        document.querySelectorAll(
-          'ins.adsbygoogle'
-        )
-      );
+    const list = Array.from(
+      document.querySelectorAll('ins.adsbygoogle')
+    );
 
-    return list.map(
-      (el, i) => {
-        if (!el.id) {
-          el.id =
-            `qai-adsense-${i + 1}`;
-        }
-
-        const client =
-          el.getAttribute(
-            'data-ad-client'
-          ) ||
-          window.google_ad_client ||
-          '';
-
-        const slot =
-          el.getAttribute(
-            'data-ad-slot'
-          ) ||
-          '';
-
-        const ds =
-          declaredSize(el);
-
-        const rc =
-          rectSize(el);
-
-        const cs =
-          `${rc.w}x${rc.h}`;
-
-        const format =
-          el.getAttribute(
-            'data-ad-format'
-          ) ||
-          '';
-
-        const isPlaceholder =
-          !client &&
-          !slot &&
-          ds === '' &&
-          (
-            rc.w === 0 ||
-            rc.h === 0
-          );
-
-        const isUninitialized =
-          !client &&
-          !slot &&
-          !isPlaceholder;
-
-        return {
-          elementId:
-            el.id,
-
-          domIndex:
-            i,
-
-          client,
-
-          slot,
-
-          declared:
-            ds,
-
-          computed:
-            cs,
-
-          format,
-
-          state:
-            isPlaceholder
-              ? 'placeholder'
-              : (
-                  isUninitialized
-                    ? 'uninitialized'
-                    : 'normal'
-                )
-        };
+    return list.map((el, i) => {
+      if (!el.id) {
+        el.id = `qai-adsense-${i + 1}`;
       }
-    );
-  }
 
-  // =========================================================
-  // GAM SCANNER
-  // =========================================================
+      const client =
+        el.getAttribute('data-ad-client') ||
+        window.google_ad_client ||
+        '';
 
-  function detectNoDivExpected(
-    adUnitPath,
-    slotElementId
-  ) {
-    const path =
-      String(
-        adUnitPath || ''
-      ).toLowerCase();
+      const slot =
+        el.getAttribute('data-ad-slot') ||
+        '';
 
-    const elementId =
-      String(
-        slotElementId || ''
-      ).toLowerCase();
+      const ds = declaredSize(el);
+      const rc = rectSize(el);
 
-    const combined =
-      `${path} ${elementId}`;
+      const cs = `${rc.w}x${rc.h}`;
 
-    return (
-      combined.includes('interstitial') ||
-      combined.includes('rewarded') ||
-      combined.includes('reward') ||
-      combined.includes('anchor')
-    );
+      const format =
+        el.getAttribute('data-ad-format') ||
+        '';
+
+      const isPlaceholder =
+        !client &&
+        !slot &&
+        ds === '' &&
+        (rc.w === 0 || rc.h === 0);
+
+      const isUninitialized =
+        !client &&
+        !slot &&
+        !isPlaceholder;
+
+      return {
+        elementId:el.id,
+        domIndex:i,
+        client,
+        slot,
+        declared:ds,
+        computed:cs,
+        format,
+        state:isPlaceholder
+          ? 'placeholder'
+          : (
+              isUninitialized
+                ? 'uninitialized'
+                : 'normal'
+            )
+      };
+    });
   }
 
   function scanGAM() {
     try {
-      if (
-        !window.googletag?.pubads
-      ) {
+      if (!(window.googletag?.pubads)) {
         return [];
       }
 
       const slots =
-        window.googletag
-          .pubads()
-          .getSlots?.() ||
+        window.googletag.pubads().getSlots?.() ||
         [];
 
       return slots.map(s => {
         let sizesArr = [];
 
         try {
-          const arr =
-            s.getSizes?.() ||
-            [];
+          const arr = s.getSizes?.() || [];
 
-          sizesArr =
-            arr
-              .map(o => {
-                if (
-                  o?.getWidth &&
-                  o?.getHeight
-                ) {
-                  return `${o.getWidth()}x${o.getHeight()}`;
-                }
+          sizesArr = arr
+            .map(o => {
+              if (o?.getWidth) {
+                return `${o.getWidth()}x${o.getHeight()}`;
+              }
 
-                if (
-                  o?.w &&
-                  o?.h
-                ) {
-                  return `${o.w}x${o.h}`;
-                }
+              if (o?.w && o?.h) {
+                return `${o.w}x${o.h}`;
+              }
 
-                return '';
-              })
-              .filter(Boolean);
+              return '';
+            })
+            .filter(Boolean);
         } catch {}
 
-        sizesArr =
-          Array.from(
-            new Set(sizesArr)
-          );
+        sizesArr = Array.from(
+          new Set(sizesArr)
+        );
 
         let targeting = {};
 
@@ -756,39 +696,16 @@
           });
         } catch {}
 
-        const hb =
-          detectHB(targeting);
-
-        const adUnitPath =
-          s.getAdUnitPath?.() ||
-          '';
-
-        const slotElementId =
-          s.getSlotElementId?.() ||
-          '';
-
-        const hasDiv =
-          !!(
-            slotElementId &&
-            document.getElementById(
-              slotElementId
-            )
-          );
-
-        const noDivExpected =
-          detectNoDivExpected(
-            adUnitPath,
-            slotElementId
-          );
+        const hb = detectHB(targeting);
 
         return {
-          adUnitPath,
+          adUnitPath:
+            s.getAdUnitPath?.() ||
+            '',
 
-          slotElementId,
-
-          hasDiv,
-
-          noDivExpected,
+          slotElementId:
+            s.getSlotElementId?.() ||
+            '',
 
           sizesArr,
 
@@ -805,59 +722,18 @@
     }
   }
 
-  // =========================================================
-  // RESCAN
-  // =========================================================
-
   function rescan() {
-    S.adsense =
-      scanAdsense();
-
-    S.gam =
-      scanGAM();
-
-    S.hbPage =
-      detectPageHB();
-
-    S.lastScan =
-      Date.now();
+    S.adsense = scanAdsense();
+    S.gam = scanGAM();
+    S.hbPage = detectPageHB();
+    S.lastScan = Date.now();
   }
 
-  // =========================================================
-  // VISIBILITY FILTERS
-  // =========================================================
+  // ---------- UI panel
 
-  function visibleAdsense() {
-    return S.showPH
-      ? S.adsense
-      : S.adsense.filter(
-          s =>
-            s.state !==
-            'placeholder'
-        );
-  }
+  const panel = document.createElement('div');
 
-  function visibleGam() {
-    if (S.showNoDivs) {
-      return S.gam;
-    }
-
-    return S.gam.filter(
-      g =>
-        g.hasDiv ||
-        g.noDivExpected
-    );
-  }
-
-  // =========================================================
-  // UI PANEL
-  // =========================================================
-
-  const panel =
-    document.createElement('div');
-
-  panel.id =
-    'qai-panel';
+  panel.id = 'qai-panel';
 
   panel.style.cssText = [
     'position:fixed',
@@ -884,12 +760,13 @@
         gap:8px;
         align-items:center;
         flex-wrap:wrap;
+        min-width:0;
       "
     >
       <b
         style="
           font-size:13px;
-          user-select:none;
+          user-select:none
         "
         id="qai-title"
       >
@@ -904,10 +781,6 @@
         Show placeholders
       </button>
 
-      <button id="qai-nodiv">
-        Show slots with no divs
-      </button>
-
       <button id="qai-min">
         Minimize
       </button>
@@ -915,7 +788,7 @@
       <span
         style="
           margin-left:auto;
-          color:#4b3a6b;
+          color:#4b3a6b
         "
         id="qai-meta"
       ></span>
@@ -925,9 +798,7 @@
 
       <div
         id="qai-head"
-        style="
-          margin-top:8px;
-        "
+        style="margin-top:8px"
       ></div>
 
       <div id="qai-top">
@@ -939,24 +810,13 @@
     </div>
   `;
 
-  document.documentElement
-    .appendChild(panel);
+  document.documentElement.appendChild(panel);
 
-  // =========================================================
-  // COLLAPSED ICON
-  // =========================================================
+  const icon = document.createElement('div');
 
-  const icon =
-    document.createElement('div');
-
-  icon.id =
-    'qai-collapsed';
-
-  icon.textContent =
-    'Ad';
-
-  icon.title =
-    'Open Debugr';
+  icon.id = 'qai-collapsed';
+  icon.textContent = 'Ad';
+  icon.title = 'Open Debugr';
 
   icon.style.cssText = [
     'position:fixed',
@@ -977,67 +837,38 @@
     'user-select:none'
   ].join(';');
 
-  document.documentElement
-    .appendChild(icon);
+  document.documentElement.appendChild(icon);
 
-  // =========================================================
-  // SUMMARY
-  // =========================================================
+  function visibleAdsense() {
+    return S.showPH
+      ? S.adsense
+      : S.adsense.filter(
+          s => s.state !== 'placeholder'
+        );
+  }
 
   function renderHead() {
-    const Aall =
-      S.adsense;
+    const Aall = S.adsense;
+    const A = visibleAdsense();
 
-    const A =
-      visibleAdsense();
-
-    const hiddenPH =
+    const ph =
       Aall.length -
       A.length;
 
-    const allG =
-      S.gam;
-
-    const visibleG =
-      visibleGam();
-
-    const withDiv =
-      allG.filter(
-        g => g.hasDiv
-      ).length;
-
-    const oop =
-      allG.filter(
-        g =>
-          g.noDivExpected &&
-          !g.hasDiv
-      ).length;
-
-    const missingDiv =
-      allG.filter(
-        g =>
-          !g.hasDiv &&
-          !g.noDivExpected
-      ).length;
+    const G =
+      S.gam.length;
 
     const hbSlots =
-      visibleG.filter(
-        g =>
-          g.hb?.active
-      ).length;
+      S.gam.filter(g => g.hb?.active).length;
 
     const pageEngines = [];
 
     if (S.hbPage.prebid) {
-      pageEngines.push(
-        'Prebid'
-      );
+      pageEngines.push('Prebid');
     }
 
     if (S.hbPage.amazon) {
-      pageEngines.push(
-        'Amazon'
-      );
+      pageEngines.push('Amazon');
     }
 
     let hbPageHtml = '';
@@ -1048,141 +879,90 @@
           style="
             margin-left:6px;
             color:#176b2c;
-            font-weight:600;
+            font-weight:600
           "
         >
-          HB library:
-          ${esc(
-            pageEngines.join(
-              ' + '
-            )
-          )}
+          HB library: ${esc(pageEngines.join(' + '))}
         </span>
       `;
     }
 
-    document
-      .getElementById(
-        'qai-head'
-      )
-      .innerHTML = `
-        <div>
-          AdSense:
-          <b>${A.length}</b>
+    document.getElementById('qai-head').innerHTML = `
+      <div>
+        AdSense slots:
+        <b>${A.length}</b>
 
-          ${
-            hiddenPH
-              ? ` (+${hiddenPH} placeholders hidden)`
-              : ''
-          }
+        ${
+          ph
+            ? ` (+${ph} placeholders hidden)`
+            : ''
+        }
 
-          |
+        |
 
-          GAM:
-          <b>${allG.length} declared</b>
+        GAM slots:
+        <b>${G}</b>
 
-          |
+        |
 
-          <b>${withDiv}</b> with div
+        HB:
+        <b>${hbSlots}/${G}</b>
 
-          |
+        ${hbPageHtml}
+      </div>
 
-          <b>${missingDiv}</b> no div
+      <div
+        style="
+          color:#4b3a6b;
+          font-size:11px
+        "
+      >
+        Last scan:
+        ${new Date(S.lastScan).toLocaleTimeString()}
+      </div>
+    `;
 
-          |
-
-          <b>${oop}</b> OOP
-
-          |
-
-          Showing:
-          <b>${visibleG.length}</b>
-
-          |
-
-          HB:
-          <b>${hbSlots}/${visibleG.length}</b>
-
-          ${hbPageHtml}
-        </div>
-
-        <div
-          style="
-            color:#4b3a6b;
-            font-size:11px;
-          "
-        >
-          Last scan:
-          ${new Date(
-            S.lastScan
-          ).toLocaleTimeString()}
-        </div>
-      `;
-
-    document
-      .getElementById(
-        'qai-ph'
-      )
-      .textContent =
-        S.showPH
-          ? 'Hide placeholders'
-          : 'Show placeholders';
-
-    document
-      .getElementById(
-        'qai-nodiv'
-      )
-      .textContent =
-        S.showNoDivs
-          ? 'Hide slots with no divs'
-          : 'Show slots with no divs';
+    document.getElementById('qai-ph').textContent =
+      S.showPH
+        ? 'Hide placeholders'
+        : 'Show placeholders';
   }
-
-  // =========================================================
-  // TABLES
-  // =========================================================
 
   function renderTables() {
     const wrap =
-      document.getElementById(
-        'qai-slots'
-      );
+      document.getElementById('qai-slots');
 
     const A =
       visibleAdsense();
-
-    const G =
-      visibleGam();
 
     const base =
       A.length;
 
     let html = '';
 
-    // ---------------------------------------------------------
-    // ADSENSE
-    // ---------------------------------------------------------
+    // ---------- AdSense table
 
     if (A.length) {
       html += `
         <div
           style="
             margin-top:6px;
-            font-weight:600;
+            font-weight:600
           "
         >
           AdSense slot details
         </div>
+      `;
 
+      html += `
         <table class="qai-table">
-
           <thead>
             <tr>
               <th style="text-align:left;padding:4px 6px">#</th>
               <th style="text-align:left;padding:4px 6px">Publisher ID</th>
               <th style="text-align:left;padding:4px 6px">Slot ID</th>
-              <th style="text-align:left;padding:4px 6px">Declared</th>
-              <th style="text-align:left;padding:4px 6px">Computed</th>
+              <th style="text-align:left;padding:4px 6px">Declared size</th>
+              <th style="text-align:left;padding:4px 6px">Computed size</th>
               <th style="text-align:left;padding:4px 6px">Format</th>
               <th style="text-align:left;padding:4px 6px">Element ID</th>
               <th style="text-align:left;padding:4px 6px">State</th>
@@ -1192,63 +972,52 @@
           <tbody>
       `;
 
-      A.forEach(
-        (s, i) => {
-          const mismatch =
-            s.declared &&
-            s.declared !== 'auto' &&
-            s.computed &&
-            s.declared !==
-              s.computed;
+      A.forEach((s, i) => {
+        const mismatch =
+          s.declared &&
+          s.declared !== 'auto' &&
+          s.computed &&
+          s.declared !== s.computed;
 
-          html += `
-            <tr>
+        html += `
+          <tr>
+            <td style="padding:3px 6px">
+              ${i + 1}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${i + 1}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(s.client)}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${esc(s.client)}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(s.slot)}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${esc(s.slot)}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(s.declared)}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${esc(s.declared)}
-              </td>
+            <td
+              class="${mismatch ? 'qai-mismatch' : ''}"
+              style="padding:3px 6px"
+            >
+              ${esc(s.computed)}
+            </td>
 
-              <td
-                class="${
-                  mismatch
-                    ? 'qai-mismatch'
-                    : ''
-                }"
-                style="
-                  padding:3px 6px;
-                "
-              >
-                ${esc(s.computed)}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(s.format)}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${esc(s.format)}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(s.elementId)}
+            </td>
 
-              <td style="padding:3px 6px">
-                ${esc(s.elementId)}
-              </td>
-
-              <td style="padding:3px 6px">
-                ${esc(s.state)}
-              </td>
-
-            </tr>
-          `;
-        }
-      );
+            <td style="padding:3px 6px">
+              ${esc(s.state)}
+            </td>
+          </tr>
+        `;
+      });
 
       html += `
           </tbody>
@@ -1259,277 +1028,125 @@
         <div
           style="
             margin-top:6px;
-            color:#6a5aa4;
+            color:#6a5aa4
           "
         >
-          AdSense slots:
-          not detected
+          AdSense slots: not detected
         </div>
       `;
     }
 
-    // ---------------------------------------------------------
-    // GAM
-    // ---------------------------------------------------------
+    // ---------- GAM table
 
-    if (G.length) {
+    if (S.gam.length) {
       html += `
         <div
           style="
             margin-top:10px;
-            font-weight:600;
+            font-weight:600
           "
         >
           GAM slot details
         </div>
+      `;
 
+      html += `
         <table class="qai-table">
 
           <thead>
             <tr>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                #
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                DIV
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                HB
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                AdUnitPath
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                SlotElementId
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                Sizes
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px;
-                "
-              >
-                Targeting
-              </th>
-
+              <th style="text-align:left;padding:4px 6px">#</th>
+              <th style="text-align:left;padding:4px 6px">HB</th>
+              <th style="text-align:left;padding:4px 6px">AdUnitPath</th>
+              <th style="text-align:left;padding:4px 6px">SlotElementId</th>
+              <th style="text-align:left;padding:4px 6px">Sizes</th>
+              <th style="text-align:left;padding:4px 6px">Targeting</th>
             </tr>
           </thead>
 
           <tbody>
       `;
 
-      G.forEach(
-        (g, idx) => {
-          const num =
-            base +
-            idx +
-            1;
+      S.gam.forEach((g, idx) => {
+        const num =
+          base +
+          idx +
+          1;
 
-          const tgt =
-            Object.keys(
-              g.targeting || {}
+        const tgt =
+          Object.keys(g.targeting || {})
+            .slice(0, 20)
+            .map(
+              k =>
+                `${esc(k)}=${esc(
+                  (g.targeting[k] || []).join('|')
+                )}`
             )
-              .slice(0, 20)
-              .map(
-                k =>
-                  `${esc(k)}=${esc(
-                    (
-                      g.targeting[k] ||
-                      []
-                    ).join('|')
-                  )}`
-              )
-              .join('; ');
+            .join('; ');
 
-          let divStatus = '';
+        html += `
+          <tr>
+            <td
+              style="
+                padding:3px 6px;
+                white-space:nowrap
+              "
+            >
+              ${num}
+            </td>
 
-          if (g.hasDiv) {
-            divStatus = `
-              <span
-                style="
-                  color:#176b2c;
-                  font-weight:700;
-                  white-space:nowrap;
-                "
-              >
-                DIV ✓
-              </span>
-            `;
-          } else if (
-            g.noDivExpected
-          ) {
-            divStatus =
-              oopBadgeHTML();
-          } else {
-            divStatus =
-              noDivBadgeHTML();
-          }
+            <td
+              style="
+                padding:3px 6px;
+                white-space:nowrap
+              "
+            >
+              ${hbBadgeHTML(g.hb)}
+            </td>
 
-          html += `
-            <tr>
+            <td style="padding:3px 6px">
+              ${esc(g.adUnitPath)}
+            </td>
 
-              <td
-                style="
-                  padding:3px 6px;
-                  white-space:nowrap;
-                "
-              >
-                ${num}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(g.slotElementId)}
+            </td>
 
-              <td
-                style="
-                  padding:3px 6px;
-                  white-space:nowrap;
-                "
-              >
-                ${divStatus}
-              </td>
+            <td style="padding:3px 6px">
+              ${esc(g.sizesStr)}
+            </td>
 
-              <td
-                style="
-                  padding:3px 6px;
-                  white-space:nowrap;
-                "
-              >
-                ${hbBadgeHTML(
-                  g.hb
-                )}
-              </td>
-
-              <td
-                style="
-                  padding:3px 6px;
-                "
-              >
-                ${esc(
-                  g.adUnitPath
-                )}
-              </td>
-
-              <td
-                style="
-                  padding:3px 6px;
-                "
-              >
-                ${esc(
-                  g.slotElementId
-                )}
-              </td>
-
-              <td
-                style="
-                  padding:3px 6px;
-                "
-              >
-                ${esc(
-                  g.sizesStr
-                )}
-              </td>
-
-              <td
-                style="
-                  padding:3px 6px;
-                "
-              >
-                ${tgt}
-              </td>
-
-            </tr>
-          `;
-        }
-      );
+            <td style="padding:3px 6px">
+              ${tgt}
+            </td>
+          </tr>
+        `;
+      });
 
       html += `
           </tbody>
         </table>
       `;
-    } else {
-      html += `
-        <div
-          style="
-            margin-top:10px;
-            color:#6a5aa4;
-          "
-        >
-          No active GAM slots
-          with a matching DIV.
-        </div>
-      `;
     }
 
-    wrap.innerHTML =
-      html;
+    wrap.innerHTML = html;
   }
-
-  // =========================================================
-  // DETAIL PANELS
-  // =========================================================
 
   function renderPanels() {
     const box =
-      document.getElementById(
-        'qai-panels'
-      );
+      document.getElementById('qai-panels');
 
     box.innerHTML = '';
 
     const A =
       visibleAdsense();
 
-    const G =
-      visibleGam();
-
     const base =
       A.length;
 
-    if (
-      A.length ||
-      G.length
-    ) {
+    if (A.length || S.gam.length) {
       const h =
-        document.createElement(
-          'div'
-        );
+        document.createElement('div');
 
       h.style =
         'margin-top:2px;font-weight:600';
@@ -1540,595 +1157,369 @@
       box.appendChild(h);
     }
 
-    const makeCornerBadge =
-      num => {
-        const b =
-          document.createElement(
-            'div'
-          );
+    const makeCornerBadge = num => {
+      const b =
+        document.createElement('div');
 
-        b.textContent =
-          num;
+      b.textContent =
+        num;
 
-        b.style =
-          'position:absolute;right:6px;bottom:6px;background:#5b3d8a;color:#fff;border-radius:12px;padding:2px 7px;font-size:12px;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.25)';
+      b.style =
+        'position:absolute;right:6px;bottom:6px;background:#5b3d8a;color:#fff;border-radius:12px;padding:2px 7px;font-size:12px;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.25)';
 
-        return b;
-      };
+      return b;
+    };
 
-    // ---------------------------------------------------------
-    // ADSENSE DETAILS
-    // ---------------------------------------------------------
+    // ---------- AdSense detail panels
 
-    A.forEach(
-      (s, i) => {
-        const num =
-          i + 1;
+    A.forEach((s, i) => {
+      const num =
+        i + 1;
 
-        const det =
-          document.createElement(
-            'details'
-          );
+      const det =
+        document.createElement('details');
 
-        det.className =
-          'qai-det';
+      det.className =
+        'qai-det';
 
-        const sum =
-          document.createElement(
-            'summary'
-          );
+      const sum =
+        document.createElement('summary');
 
-        sum.className =
-          'qai-sum';
+      sum.className =
+        'qai-sum';
 
-        sum.innerHTML = `
-          #${num}
-          [AdSense]
-          ${esc(
-            s.client || '-'
-          )}
-          /
-          ${esc(
-            s.slot || '-'
-          )}
+      sum.innerHTML = `
+        #${num}
+        [AdSense]
+        ${esc(s.client || '-')}
+        /
+        ${esc(s.slot || '-')}
 
-          &nbsp;
+        &nbsp;
 
-          <button
-            data-kind="adsense"
-            data-el="${esc(
-              s.elementId
-            )}"
-            data-idx="${
-              s.domIndex
-            }"
-            class="qai-hl"
-            style="
-              margin-left:8px;
-            "
-          >
-            Highlight
-          </button>
-        `;
+        <button
+          data-kind="adsense"
+          data-el="${esc(s.elementId)}"
+          data-idx="${s.domIndex}"
+          class="qai-hl"
+          style="margin-left:8px"
+        >
+          Highlight
+        </button>
+      `;
 
-        const mismatch =
-          s.declared &&
-          s.declared !== 'auto' &&
-          s.computed &&
-          s.declared !==
-            s.computed;
+      const mismatch =
+        s.declared &&
+        s.declared !== 'auto' &&
+        s.computed &&
+        s.declared !== s.computed;
 
-        const inner =
-          document.createElement(
-            'div'
-          );
+      const inner =
+        document.createElement('div');
 
-        inner.style =
-          'margin-top:6px;font-size:11px';
+      inner.style =
+        'margin-top:6px;font-size:11px';
 
-        inner.innerHTML = `
-          <div>
-            Element ID:
-            <b>
-              ${esc(
-                s.elementId || ''
-              )}
-            </b>
-          </div>
+      inner.innerHTML = `
+        <div>
+          Element ID:
+          <b>${esc(s.elementId || '')}</b>
+        </div>
 
-          <div>
-            State:
-            <b>
-              ${esc(
-                s.state
-              )}
-            </b>
-          </div>
+        <div>
+          State:
+          <b>${esc(s.state)}</b>
+        </div>
 
-          <div>
-            Declared:
-            <b>
-              ${esc(
-                s.declared || ''
-              )}
-            </b>
+        <div>
+          Declared:
+          <b>${esc(s.declared || '')}</b>
 
-            |
+          |
 
-            Computed:
-            <b
-              class="${
-                mismatch
-                  ? 'qai-mismatch'
-                  : ''
-              }"
-            >
-              ${esc(
-                s.computed || ''
-              )}
-            </b>
+          Computed:
+          <b class="${mismatch ? 'qai-mismatch' : ''}">
+            ${esc(s.computed || '')}
+          </b>
 
-            |
+          |
 
-            Format:
-            <b>
-              ${esc(
-                s.format || ''
-              )}
-            </b>
-          </div>
-        `;
+          Format:
+          <b>${esc(s.format || '')}</b>
+        </div>
+      `;
 
-        det.appendChild(sum);
+      det.appendChild(sum);
+      det.appendChild(inner);
+      det.appendChild(makeCornerBadge(num));
 
-        det.appendChild(inner);
+      box.appendChild(det);
+    });
 
-        det.appendChild(
-          makeCornerBadge(num)
-        );
+    // ---------- GAM detail panels
 
-        box.appendChild(det);
-      }
-    );
+    S.gam.forEach((g, idx) => {
+      const num =
+        base +
+        idx +
+        1;
 
-    // ---------------------------------------------------------
-    // GAM DETAILS
-    // ---------------------------------------------------------
+      const det =
+        document.createElement('details');
 
-    G.forEach(
-      (g, idx) => {
-        const num =
-          base +
-          idx +
-          1;
+      det.className =
+        'qai-det';
 
-        const det =
-          document.createElement(
-            'details'
-          );
+      const sum =
+        document.createElement('summary');
 
-        det.className =
-          'qai-det';
+      sum.className =
+        'qai-sum';
 
-        const sum =
-          document.createElement(
-            'summary'
-          );
+      sum.innerHTML = `
+        #${num}
+        [GAM]
+        ${esc(g.adUnitPath || '-')}
 
-        sum.className =
-          'qai-sum';
+        &nbsp;
 
-        let divBadge = '';
+        ${hbBadgeHTML(g.hb)}
 
-        if (
-          !g.hasDiv &&
-          g.noDivExpected
-        ) {
-          divBadge =
-            oopBadgeHTML();
-        } else if (
-          !g.hasDiv
-        ) {
-          divBadge =
-            noDivBadgeHTML();
-        }
+        &nbsp;
 
-        sum.innerHTML = `
-          #${num}
-          [GAM]
-          ${esc(
-            g.adUnitPath ||
-            '-'
-          )}
+        <button
+          data-kind="gam"
+          data-el="${esc(g.slotElementId)}"
+          class="qai-hl"
+          style="margin-left:8px"
+        >
+          Highlight
+        </button>
+      `;
 
-          &nbsp;
+      const inner =
+        document.createElement('div');
 
-          ${divBadge}
+      inner.style =
+        'margin-top:6px;font-size:11px;white-space:pre-wrap';
 
-          &nbsp;
-
-          ${hbBadgeHTML(
-            g.hb
-          )}
-
-          &nbsp;
-
-          ${
-            g.hasDiv
-              ? `
-                <button
-                  data-kind="gam"
-                  data-el="${esc(
-                    g.slotElementId
-                  )}"
-                  class="qai-hl"
-                  style="
-                    margin-left:8px;
-                  "
-                >
-                  Highlight
-                </button>
-              `
-              : ''
-          }
-        `;
-
-        const inner =
-          document.createElement(
-            'div'
-          );
-
-        inner.style =
-          'margin-top:6px;font-size:11px;white-space:pre-wrap';
-
-        const tgt =
-          Object.keys(
-            g.targeting || {}
+      const tgt =
+        Object.keys(g.targeting || {})
+          .slice(0, 50)
+          .map(
+            k =>
+              `${k} = ${(g.targeting[k] || []).join('|')}`
           )
-            .slice(0, 50)
-            .map(
-              k =>
-                `${k} = ${(
-                  g.targeting[k] ||
-                  []
-                ).join('|')}`
-            )
-            .join('\n');
+          .join('\n');
 
-        const hbKeys =
-          g.hb?.keys?.length
-            ? g.hb.keys
-                .map(k => {
-                  const values =
-                    g.targeting?.[
-                      k
-                    ] ||
-                    [];
+      const hbKeys =
+        g.hb?.keys?.length
+          ? g.hb.keys
+              .map(k => {
+                const values =
+                  g.targeting?.[k] || [];
 
-                  return `${k} = ${values.join('|')}`;
-                })
-                .join('\n')
-            : '(none)';
+                return `${k} = ${values.join('|')}`;
+              })
+              .join('\n')
+          : '(none)';
 
-        const hbEngine =
-          g.hb?.engines?.length
-            ? g.hb.engines.join(
-                ' + '
-              )
-            : 'none';
+      const hbEngine =
+        g.hb?.engines?.length
+          ? g.hb.engines.join(' + ')
+          : 'none';
 
-        let divText = '';
+      inner.innerHTML = `
+        <div>
+          SlotElementId:
+          <b>${esc(g.slotElementId || '')}</b>
+        </div>
 
-        if (g.hasDiv) {
-          divText =
-            'YES';
-        } else if (
-          g.noDivExpected
-        ) {
-          divText =
-            'Not required (OOP / special format)';
-        } else {
-          divText =
-            'NO — matching DOM element not found';
+        <div>
+          Sizes:
+          <b>${esc(g.sizesStr || '')}</b>
+        </div>
+
+        <div style="margin-top:5px">
+          HB:
+          ${
+            g.hb?.active
+              ? '<b style="color:#176b2c">YES ✓</b>'
+              : '<b style="color:#a31d1d">NO ✕</b>'
+          }
+        </div>
+
+        <div>
+          HB engine:
+          <b>${esc(hbEngine)}</b>
+        </div>
+
+        <div style="margin-top:4px">
+          <u>HB targeting</u>:
+${esc(hbKeys)}
+        </div>
+
+        <div style="margin-top:6px">
+          <u>All targeting</u>:
+${esc(tgt || '(none)')}
+        </div>
+      `;
+
+      det.appendChild(sum);
+      det.appendChild(inner);
+      det.appendChild(makeCornerBadge(num));
+
+      box.appendChild(det);
+    });
+
+    // ---------- Highlight handlers
+
+    box.querySelectorAll('.qai-hl').forEach(btn => {
+      btn.onclick = e => {
+        e.preventDefault();
+
+        const kind =
+          btn.getAttribute('data-kind');
+
+        const elId =
+          btn.getAttribute('data-el');
+
+        let el =
+          elId
+            ? document.getElementById(elId)
+            : null;
+
+        if (!el && kind === 'adsense') {
+          const idx =
+            parseInt(
+              btn.getAttribute('data-idx') || '-1',
+              10
+            );
+
+          const list =
+            document.querySelectorAll(
+              'ins.adsbygoogle'
+            );
+
+          if (
+            idx >= 0 &&
+            list[idx]
+          ) {
+            el =
+              list[idx];
+          }
         }
 
-        inner.innerHTML = `
-          <div>
-            SlotElementId:
-            <b>
-              ${esc(
-                g.slotElementId ||
-                ''
-              )}
-            </b>
-          </div>
+        if (!el) {
+          return;
+        }
 
-          <div>
-            DIV:
-            <b>
-              ${esc(
-                divText
-              )}
-            </b>
-          </div>
+        el.scrollIntoView({
+          behavior:'smooth',
+          block:'center'
+        });
 
-          <div>
-            Sizes:
-            <b>
-              ${esc(
-                g.sizesStr ||
-                ''
-              )}
-            </b>
-          </div>
+        const old =
+          el.style.outline;
 
-          <div
-            style="
-              margin-top:5px;
-            "
-          >
-            HB:
+        el.style.outline =
+          '3px solid #8a2be2';
 
-            ${
-              g.hb?.active
-                ? '<b style="color:#176b2c">YES ✓</b>'
-                : '<b style="color:#a31d1d">NO ✕</b>'
-            }
-          </div>
-
-          <div>
-            HB engine:
-            <b>
-              ${esc(
-                hbEngine
-              )}
-            </b>
-          </div>
-
-          <div
-            style="
-              margin-top:4px;
-            "
-          >
-            <u>
-              HB targeting
-            </u>:
-
-${esc(hbKeys)}
-          </div>
-
-          <div
-            style="
-              margin-top:6px;
-            "
-          >
-            <u>
-              All targeting
-            </u>:
-
-${esc(
-  tgt || '(none)'
-)}
-          </div>
-        `;
-
-        det.appendChild(sum);
-
-        det.appendChild(inner);
-
-        det.appendChild(
-          makeCornerBadge(num)
-        );
-
-        box.appendChild(det);
-      }
-    );
-
-    // ---------------------------------------------------------
-    // HIGHLIGHT
-    // ---------------------------------------------------------
-
-    box
-      .querySelectorAll(
-        '.qai-hl'
-      )
-      .forEach(btn => {
-        btn.onclick =
-          e => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const kind =
-              btn.getAttribute(
-                'data-kind'
-              );
-
-            const elId =
-              btn.getAttribute(
-                'data-el'
-              );
-
-            let el =
-              elId
-                ? document.getElementById(
-                    elId
-                  )
-                : null;
-
-            if (
-              !el &&
-              kind === 'adsense'
-            ) {
-              const idx =
-                parseInt(
-                  btn.getAttribute(
-                    'data-idx'
-                  ) ||
-                  '-1',
-                  10
-                );
-
-              const list =
-                document.querySelectorAll(
-                  'ins.adsbygoogle'
-                );
-
-              if (
-                idx >= 0 &&
-                list[idx]
-              ) {
-                el =
-                  list[idx];
-              }
-            }
-
-            if (!el) {
-              return;
-            }
-
-            el.scrollIntoView({
-              behavior:
-                'smooth',
-
-              block:
-                'center'
-            });
-
-            const old =
-              el.style.outline;
-
-            el.style.outline =
-              '3px solid #8a2be2';
-
-            setTimeout(
-              () => {
-                el.style.outline =
-                  old;
-              },
-              1500
-            );
-          };
-      });
+        setTimeout(() => {
+          el.style.outline = old;
+        }, 1500);
+      };
+    });
   }
-
-  // =========================================================
-  // PHYSICAL PAGE OVERLAYS
-  // =========================================================
 
   function placeBadgesAndOverlays() {
     document
-      .querySelectorAll(
-        '.qai-slot-badge'
-      )
-      .forEach(
-        n => n.remove()
-      );
+      .querySelectorAll('.qai-slot-badge')
+      .forEach(n => n.remove());
 
     document
-      .querySelectorAll(
-        '.qai-slot-overlay'
-      )
-      .forEach(
-        n => n.remove()
-      );
+      .querySelectorAll('.qai-slot-overlay')
+      .forEach(n => n.remove());
 
     const A =
       visibleAdsense();
 
-    const G =
-      visibleGam();
+    // ---------- AdSense overlays
 
-    // ---------------------------------------------------------
-    // ADSENSE
-    // ---------------------------------------------------------
+    A.forEach((s, i) => {
+      const num =
+        i + 1;
 
-    A.forEach(
-      (s, i) => {
-        const num =
-          i + 1;
-
-        const el =
-          document.getElementById(
-            s.elementId
-          );
-
-        if (!el) {
-          return;
-        }
-
-        addBadge(
-          el,
-          num
+      const el =
+        document.getElementById(
+          s.elementId
         );
 
-        const lines = [
-          `[AdSense] ${s.client || '-'} / ${s.slot || '-'}`,
-          `Declared: ${s.declared || '-'} | Computed: ${s.computed || '-'}`
-        ];
-
-        addSlotOverlay(
-          el,
-          num,
-          lines
-        );
+      if (!el) {
+        return;
       }
-    );
 
-    // ---------------------------------------------------------
-    // GAM
-    // ---------------------------------------------------------
+      addBadge(
+        el,
+        num
+      );
 
-    G.forEach(
-      (g, idx) => {
-        const num =
-          A.length +
-          idx +
-          1;
+      const lines = [
+        `[AdSense] ${s.client || '-'} / ${s.slot || '-'}`,
+        `Declared: ${s.declared || '-'} | Computed: ${s.computed || '-'}`
+      ];
 
-        if (
-          !g.hasDiv ||
-          !g.slotElementId
-        ) {
-          return;
-        }
+      addSlotOverlay(
+        el,
+        num,
+        lines
+      );
+    });
 
-        const el =
-          document.getElementById(
-            g.slotElementId
-          );
+    // ---------- GAM overlays
 
-        if (!el) {
-          return;
-        }
+    S.gam.forEach((g, idx) => {
+      const num =
+        A.length +
+        idx +
+        1;
 
-        addBadge(
-          el,
-          num
-        );
-
-        const hbText =
-          g.hb?.active
-            ? `HB: YES (${g.hb.engines.join(' + ') || 'detected'})`
-            : 'HB: NO';
-
-        const lines = [
-          `[GAM] ${g.adUnitPath || '-'}`,
-          `Sizes: ${g.sizesStr || '-'}`,
-          hbText
-        ];
-
-        addSlotOverlay(
-          el,
-          num,
-          lines
-        );
+      if (!g.slotElementId) {
+        return;
       }
-    );
+
+      const el =
+        document.getElementById(
+          g.slotElementId
+        );
+
+      if (!el) {
+        return;
+      }
+
+      addBadge(
+        el,
+        num
+      );
+
+      const hbText =
+        g.hb?.active
+          ? `HB: YES (${g.hb.engines.join(' + ') || 'detected'})`
+          : 'HB: NO';
+
+      const lines = [
+        `[GAM] ${g.adUnitPath || '-'}`,
+        `Sizes: ${g.sizesStr || '-'}`,
+        hbText
+      ];
+
+      addSlotOverlay(
+        el,
+        num,
+        lines
+      );
+    });
   }
-
-  // =========================================================
-  // RENDER
-  // =========================================================
 
   function renderAll() {
     if (S.collapsed) {
@@ -2136,28 +1527,14 @@ ${esc(
     }
 
     renderHead();
-
     renderTables();
-
     renderPanels();
-
     placeBadgesAndOverlays();
   }
 
-  // =========================================================
-  // COLLAPSE / EXPAND
-  // =========================================================
+  // ---------- collapse / expand
 
-  function collapse() {
-    S.collapsed =
-      true;
-
-    panel.style.display =
-      'none';
-
-    icon.style.display =
-      'flex';
-
+  function saveCollapsed() {
     try {
       localStorage.setItem(
         '__qai_collapsed',
@@ -2166,9 +1543,28 @@ ${esc(
     } catch {}
   }
 
+  function saveExpanded() {
+    try {
+      localStorage.removeItem(
+        '__qai_collapsed'
+      );
+    } catch {}
+  }
+
+  function collapse() {
+    S.collapsed = true;
+
+    panel.style.display =
+      'none';
+
+    icon.style.display =
+      'flex';
+
+    saveCollapsed();
+  }
+
   function expand() {
-    S.collapsed =
-      false;
+    S.collapsed = false;
 
     icon.style.display =
       'none';
@@ -2182,82 +1578,35 @@ ${esc(
     panel.style.opacity =
       '1';
 
-    try {
-      localStorage.removeItem(
-        '__qai_collapsed'
-      );
-    } catch {}
+    saveExpanded();
 
     rescan();
-
     renderAll();
   }
 
-  // =========================================================
-  // CONTROLS
-  // =========================================================
+  document.getElementById('qai-r').onclick = () => {
+    rescan();
+    renderAll();
+  };
 
-  document
-    .getElementById(
-      'qai-r'
-    )
-    .onclick =
-      () => {
-        rescan();
+  document.getElementById('qai-ph').onclick = () => {
+    S.showPH =
+      !S.showPH;
 
-        renderAll();
-      };
+    renderAll();
+  };
 
-  document
-    .getElementById(
-      'qai-ph'
-    )
-    .onclick =
-      () => {
-        S.showPH =
-          !S.showPH;
+  document.getElementById('qai-min').onclick =
+    collapse;
 
-        renderAll();
-      };
-
-  document
-    .getElementById(
-      'qai-nodiv'
-    )
-    .onclick =
-      () => {
-        S.showNoDivs =
-          !S.showNoDivs;
-
-        rescan();
-
-        renderAll();
-      };
-
-  document
-    .getElementById(
-      'qai-min'
-    )
-    .onclick =
-      collapse;
-
-  document
-    .getElementById(
-      'qai-title'
-    )
-    .ondblclick =
-      collapse;
+  document.getElementById('qai-title').ondblclick =
+    collapse;
 
   icon.onclick =
     expand;
 
-  // =========================================================
-  // INIT
-  // =========================================================
-
   function init() {
-    S.collapsed =
-      false;
+    S.collapsed = false;
 
     try {
       localStorage.removeItem(
@@ -2278,61 +1627,42 @@ ${esc(
       '1';
 
     rescan();
-
     renderAll();
 
     window.addEventListener(
       'load',
       () => {
-        setTimeout(
-          () => {
-            rescan();
-            renderAll();
-          },
-          400
-        );
+        setTimeout(() => {
+          rescan();
+          renderAll();
+        }, 400);
 
-        setTimeout(
-          () => {
-            rescan();
-            renderAll();
-          },
-          1500
-        );
+        setTimeout(() => {
+          rescan();
+          renderAll();
+        }, 1500);
 
-        setTimeout(
-          () => {
-            rescan();
-            renderAll();
-          },
-          3000
-        );
+        setTimeout(() => {
+          rescan();
+          renderAll();
+        }, 3000);
       }
     );
 
-    setTimeout(
-      () => {
-        rescan();
-        renderAll();
-      },
-      500
-    );
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 500);
 
-    setTimeout(
-      () => {
-        rescan();
-        renderAll();
-      },
-      1500
-    );
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 1500);
 
-    setTimeout(
-      () => {
-        rescan();
-        renderAll();
-      },
-      3000
-    );
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 3000);
   }
 
   init();
