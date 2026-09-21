@@ -1,75 +1,90 @@
 (() => {
   "use strict";
 
-  const APP_ID = "__debugr_troubleshoot_v1__";
-  const existing = document.getElementById(APP_ID);
-  if (existing) {
-    existing.remove();
+  const APP_ID = "__debugr_troubleshooting__";
+
+  const old = document.getElementById(APP_ID);
+  if (old) {
+    old.remove();
     return;
   }
 
   const state = {
     slots: [],
     selected: 0,
-    autoRefresh: false,
-    timer: null
+    showIgnored: false,
+    ignored: [],
+    timer: null,
+    auto: false
   };
 
   const host = document.createElement("div");
   host.id = APP_ID;
-  host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
+  host.style.cssText =
+    "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
+
   document.documentElement.appendChild(host);
 
   const root = host.attachShadow({ mode: "open" });
 
   root.innerHTML = `
     <style>
-      :host { all: initial; }
-      * { box-sizing: border-box; }
+      :host {
+        all: initial;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
 
       .panel {
         position: fixed;
-        top: 14px;
-        right: 14px;
-        width: min(620px, calc(100vw - 28px));
-        max-height: calc(100vh - 28px);
+        top: 12px;
+        right: 12px;
+        width: min(640px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
         overflow: hidden;
         pointer-events: auto;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Arial,
+          sans-serif;
         font-size: 13px;
         line-height: 1.4;
-        color: #e9eef6;
-        background: #10141b;
-        border: 1px solid #2a3340;
+        color: #edf3fb;
+        background: #0f151e;
+        border: 1px solid #344051;
         border-radius: 14px;
-        box-shadow: 0 18px 60px rgba(0,0,0,.48);
+        box-shadow: 0 18px 60px rgba(0,0,0,.55);
       }
 
-      .head {
-        display:flex;
-        align-items:center;
-        gap:10px;
-        padding:12px 14px;
-        border-bottom:1px solid #27303b;
-        background:#151b24;
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 12px;
+        background: #161e29;
+        border-bottom: 1px solid #303b49;
       }
 
       .title {
-        font-weight:800;
-        font-size:15px;
-        letter-spacing:.2px;
+        font-size: 15px;
+        font-weight: 800;
       }
 
       .pill {
-        font-size:11px;
-        padding:3px 7px;
-        border-radius:999px;
-        border:1px solid #364252;
-        color:#b9c5d6;
+        border: 1px solid #425066;
+        border-radius: 999px;
+        padding: 2px 7px;
+        font-size: 11px;
+        color: #bac6d7;
       }
 
       .spacer {
-        flex:1;
+        flex: 1;
       }
 
       button,
@@ -78,341 +93,473 @@
       }
 
       button {
-        border:1px solid #3a4657;
-        background:#1d2530;
-        color:#eaf0f7;
-        border-radius:8px;
-        padding:6px 9px;
-        cursor:pointer;
+        cursor: pointer;
+        color: #edf3fb;
+        background: #1c2633;
+        border: 1px solid #415066;
+        border-radius: 8px;
+        padding: 6px 9px;
       }
 
       button:hover {
-        background:#263140;
+        background: #263345;
       }
 
-      button.primary {
-        background:#1f5eff;
-        border-color:#1f5eff;
-      }
-
-      button.danger {
-        background:#3a1f25;
-        border-color:#6a2f3b;
+      .danger {
+        background: #3b1e25;
+        border-color: #71303d;
       }
 
       .controls {
-        display:grid;
-        grid-template-columns: 1fr auto auto;
-        gap:8px;
-        padding:10px 12px;
-        border-bottom:1px solid #27303b;
-        background:#111720;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        padding: 9px 10px;
+        background: #111923;
+        border-bottom: 1px solid #303b49;
       }
 
       select {
-        width:100%;
-        min-width:0;
-        background:#0d1218;
-        border:1px solid #364252;
-        color:#e8eef7;
-        border-radius:8px;
-        padding:7px 9px;
+        width: 100%;
+        min-width: 0;
+        padding: 7px 9px;
+        color: #edf3fb;
+        background: #0b1119;
+        border: 1px solid #3a485c;
+        border-radius: 8px;
+      }
+
+      .subcontrols {
+        display: flex;
+        gap: 7px;
+        padding: 0 10px 9px 10px;
+        background: #111923;
+        border-bottom: 1px solid #303b49;
+        flex-wrap: wrap;
       }
 
       .body {
-        overflow:auto;
-        max-height:calc(100vh - 130px);
-        padding:12px;
+        overflow: auto;
+        max-height: calc(100vh - 162px);
+        padding: 10px;
       }
 
       .section {
-        border:1px solid #283240;
-        border-radius:10px;
-        margin-bottom:10px;
-        overflow:hidden;
-        background:#111720;
+        margin-bottom: 10px;
+        overflow: hidden;
+        background: #111923;
+        border: 1px solid #2d3948;
+        border-radius: 10px;
       }
 
-      .section h3 {
-        margin:0;
-        padding:8px 10px;
-        font-size:12px;
-        text-transform:uppercase;
-        letter-spacing:.7px;
-        background:#171e28;
-        border-bottom:1px solid #283240;
-        color:#aebbd0;
+      .section-title {
+        padding: 7px 10px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .7px;
+        text-transform: uppercase;
+        color: #aab9cc;
+        background: #18212d;
+        border-bottom: 1px solid #2d3948;
       }
 
       .grid {
-        display:grid;
-        grid-template-columns: 155px minmax(0,1fr);
+        display: grid;
+        grid-template-columns: 158px minmax(0,1fr);
       }
 
       .k,
       .v {
-        padding:7px 9px;
-        border-bottom:1px solid #222b36;
+        padding: 7px 9px;
+        border-bottom: 1px solid #263241;
       }
 
       .k {
-        color:#8290a4;
+        color: #8fa0b5;
       }
 
       .v {
-        color:#edf3fb;
-        overflow-wrap:anywhere;
-        user-select:text;
+        color: #eef4fb;
+        overflow-wrap: anywhere;
+        user-select: text;
       }
 
-      .grid > :nth-last-child(-n+2) {
-        border-bottom:0;
+      .grid > .k:nth-last-child(-n+2),
+      .grid > .v:nth-last-child(-n+2) {
+        border-bottom: none;
       }
 
-      .ok {
-        color:#6ee7a8;
-        font-weight:700;
+      .yes {
+        color: #63e6a1;
+        font-weight: 750;
+      }
+
+      .no {
+        color: #ff7f87;
+        font-weight: 750;
       }
 
       .warn {
-        color:#ffd479;
-        font-weight:700;
-      }
-
-      .bad {
-        color:#ff8383;
-        font-weight:700;
+        color: #ffd06b;
+        font-weight: 750;
       }
 
       .adx {
-        color:#8db7ff;
-        font-weight:800;
+        color: #83b5ff;
+        font-weight: 800;
       }
 
       .hb {
-        color:#68e1dc;
-        font-weight:800;
+        color: #66ded8;
+        font-weight: 800;
       }
 
       .muted {
-        color:#7f8da0;
+        color: #7f8da0;
       }
 
       .mono {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size:12px;
-      }
-
-      .row {
-        display:flex;
-        gap:8px;
-        align-items:center;
-        flex-wrap:wrap;
-      }
-
-      .small {
-        font-size:11px;
-        color:#8f9bad;
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          Consolas,
+          monospace;
       }
 
       .bidtable {
-        width:100%;
-        border-collapse:collapse;
+        width: 100%;
+        border-collapse: collapse;
       }
 
       .bidtable th,
       .bidtable td {
-        padding:7px 8px;
-        border-bottom:1px solid #222b36;
-        text-align:left;
-        vertical-align:top;
+        padding: 7px 8px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid #253140;
       }
 
       .bidtable th {
-        color:#8391a5;
-        font-size:11px;
-        font-weight:600;
+        color: #8fa0b5;
+        font-size: 11px;
+        font-weight: 650;
       }
 
       .bidtable tr:last-child td {
-        border-bottom:0;
+        border-bottom: none;
       }
 
-      .winnerRow {
-        background:rgba(61, 207, 174, .08);
-      }
-
-      .pre {
-        white-space:pre-wrap;
-        word-break:break-word;
-        font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size:11px;
-        margin:0;
-        padding:9px;
-        color:#d6dfec;
-        background:#0c1117;
-        max-height:220px;
-        overflow:auto;
-      }
-
-      .empty {
-        padding:18px;
-        color:#8c99aa;
-        text-align:center;
-      }
-
-      .footer {
-        padding:8px 12px;
-        border-top:1px solid #27303b;
-        display:flex;
-        align-items:center;
-        gap:8px;
-        background:#111720;
-      }
-
-      .statusdot {
-        width:7px;
-        height:7px;
-        border-radius:50%;
-        background:#6ee7a8;
-        display:inline-block;
-      }
-
-      a {
-        color:#8db7ff;
-        text-decoration:none;
-      }
-
-      a:hover {
-        text-decoration:underline;
+      .winner-row {
+        background: rgba(53, 201, 175, .09);
       }
 
       .copy {
-        font-size:10px;
-        padding:3px 6px;
+        padding: 2px 6px;
+        margin-left: 5px;
+        font-size: 10px;
       }
 
-      @media (max-width: 620px) {
+      .link {
+        color: #83b5ff;
+        text-decoration: none;
+      }
+
+      .link:hover {
+        text-decoration: underline;
+      }
+
+      .empty {
+        padding: 14px;
+        text-align: center;
+        color: #8594a8;
+      }
+
+      details {
+        background: #0c1219;
+      }
+
+      summary {
+        cursor: pointer;
+        padding: 9px 10px;
+        font-weight: 700;
+        color: #adb9ca;
+        background: #18212d;
+      }
+
+      pre {
+        margin: 0;
+        padding: 10px;
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: #d8e0eb;
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          Consolas,
+          monospace;
+        font-size: 11px;
+      }
+
+      .ignored {
+        padding: 8px 10px;
+        color: #8594a8;
+        font-size: 11px;
+      }
+
+      .footer {
+        padding: 7px 10px;
+        border-top: 1px solid #303b49;
+        color: #8797aa;
+        font-size: 11px;
+        background: #111923;
+      }
+
+      @media (max-width: 650px) {
         .panel {
-          top:6px;
-          right:6px;
-          width:calc(100vw - 12px);
-          max-height:calc(100vh - 12px);
+          top: 5px;
+          right: 5px;
+          width: calc(100vw - 10px);
+          max-height: calc(100vh - 10px);
         }
 
         .grid {
-          grid-template-columns: 120px minmax(0,1fr);
+          grid-template-columns: 125px minmax(0,1fr);
         }
 
-        .controls {
-          grid-template-columns:1fr auto;
-        }
-
-        .controls .autoBtn {
-          display:none;
+        .body {
+          max-height: calc(100vh - 170px);
         }
       }
     </style>
 
     <div class="panel">
-      <div class="head">
+      <div class="header">
         <div class="title">Debugr · Troubleshooting</div>
         <div class="pill" id="slotCount">0 slots</div>
+
         <div class="spacer"></div>
-        <button id="refreshBtn" title="Re-scan page">Refresh</button>
-        <button id="closeBtn" class="danger" title="Close">×</button>
+
+        <button id="refreshBtn">Refresh</button>
+        <button id="closeBtn" class="danger">×</button>
       </div>
 
       <div class="controls">
         <select id="slotSelect"></select>
-        <button id="autoBtn" class="autoBtn">Auto: off</button>
+        <button id="autoBtn">Auto: off</button>
+      </div>
+
+      <div class="subcontrols">
+        <button id="ignoredBtn">Ignored: 0</button>
         <button id="consoleBtn">Publisher Console</button>
       </div>
 
       <div class="body" id="body"></div>
 
-      <div class="footer">
-        <span class="statusdot"></span>
-        <span class="small" id="foot">Ready</span>
-      </div>
+      <div class="footer" id="footer">Ready</div>
     </div>
   `;
 
-  const $ = (sel) => root.querySelector(sel);
+  const $ = selector => root.querySelector(selector);
+
   const body = $("#body");
   const select = $("#slotSelect");
 
-  function esc(v) {
-    return String(v ?? "")
+  function esc(value) {
+    return String(value ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
 
-  function json(v) {
+  function stringify(value) {
     try {
-      return JSON.stringify(v, null, 2);
+      return JSON.stringify(value, null, 2);
     } catch (_) {
-      return String(v);
+      return String(value);
     }
   }
 
-  function fmtNum(v, digits = 4) {
-    const n = Number(v);
-    return Number.isFinite(n)
-      ? n.toFixed(digits).replace(/\.?0+$/, "")
-      : "—";
+  function copyButton(value) {
+    if (
+      value === undefined ||
+      value === null ||
+      value === ""
+    ) {
+      return "";
+    }
+
+    return `
+      <button class="copy" data-copy="${esc(String(value))}">
+        Copy
+      </button>
+    `;
   }
 
-  function fmtMoney(v, cur) {
-    const n = Number(v);
-    return Number.isFinite(n)
-      ? `${fmtNum(n, 4)} ${cur || ""}`.trim()
-      : "—";
+  function kv(key, value, cls = "") {
+    return `
+      <div class="k">${esc(key)}</div>
+      <div class="v ${cls}">${value}</div>
+    `;
+  }
+
+  function yesNo(value) {
+    if (value === true) {
+      return `<span class="yes">YES</span>`;
+    }
+
+    if (value === false) {
+      return `<span class="no">NO</span>`;
+    }
+
+    return `<span class="muted">UNKNOWN</span>`;
+  }
+
+  function safeNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function money(value, currency = "USD") {
+    const n = safeNumber(value);
+
+    if (n === null) {
+      return "—";
+    }
+
+    let out;
+
+    if (n >= 1) {
+      out = n.toFixed(2);
+    } else if (n >= 0.01) {
+      out = n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    } else {
+      out = n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    }
+
+    return `${out} ${currency || ""}`.trim();
   }
 
   function getGoogletag() {
     try {
-      return window.googletag && window.googletag.apiReady
-        ? window.googletag
-        : null;
-    } catch (_) {
-      return null;
-    }
+      if (
+        window.googletag &&
+        window.googletag.apiReady
+      ) {
+        return window.googletag;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   function getPbjs() {
     try {
-      return window.pbjs && typeof window.pbjs === "object"
-        ? window.pbjs
-        : null;
-    } catch (_) {
-      return null;
-    }
+      if (
+        window.pbjs &&
+        typeof window.pbjs === "object"
+      ) {
+        return window.pbjs;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   function getNetworkCode(adUnitPath) {
-    const m = String(adUnitPath || "").match(/^\/(\d+)\//);
-    return m ? m[1] : "";
+    const match = String(adUnitPath || "")
+      .match(/^\/(\d+)\//);
+
+    return match ? match[1] : "";
+  }
+
+  function getSlotDivId(slot) {
+    try {
+      return slot.getSlotElementId() || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function getAdUnitPath(slot) {
+    try {
+      return slot.getAdUnitPath() || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function isOutOfPage(slot, adUnitPath, divId) {
+    try {
+      if (
+        typeof slot.getOutOfPage === "function" &&
+        slot.getOutOfPage()
+      ) {
+        return true;
+      }
+    } catch (_) {}
+
+    const text =
+      `${adUnitPath || ""} ${divId || ""}`.toLowerCase();
+
+    if (
+      /\b(interstitial|anchor|rewarded|out[-_ ]?of[-_ ]?page|oop)\b/.test(text)
+    ) {
+      return true;
+    }
+
+    try {
+      if (
+        !divId &&
+        typeof slot.getSlotElementId === "function"
+      ) {
+        const targeting = getTargeting(slot);
+
+        const format =
+          firstTarget(targeting, "format") ||
+          firstTarget(targeting, "ad_format") ||
+          firstTarget(targeting, "google_ad_format");
+
+        if (
+          /interstitial|anchor|rewarded/i.test(
+            String(format || "")
+          )
+        ) {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
   }
 
   function getSlotSizes(slot) {
     try {
-      const sizes = slot.getSizes ? slot.getSizes() : [];
+      const sizes =
+        typeof slot.getSizes === "function"
+          ? slot.getSizes()
+          : [];
 
-      return sizes.map(s => {
-        if (typeof s === "string") return s;
-
-        if (
-          s &&
-          typeof s.getWidth === "function" &&
-          typeof s.getHeight === "function"
-        ) {
-          return `${s.getWidth()}x${s.getHeight()}`;
+      return sizes.map(size => {
+        if (typeof size === "string") {
+          return size;
         }
 
-        return String(s);
+        if (
+          size &&
+          typeof size.getWidth === "function" &&
+          typeof size.getHeight === "function"
+        ) {
+          return `${size.getWidth()}x${size.getHeight()}`;
+        }
+
+        return String(size);
       });
     } catch (_) {
       return [];
@@ -428,9 +575,9 @@
           ? slot.getTargetingKeys()
           : [];
 
-      keys.forEach(k => {
+      keys.forEach(key => {
         try {
-          out[k] = slot.getTargeting(k);
+          out[key] = slot.getTargeting(key);
         } catch (_) {}
       });
     } catch (_) {}
@@ -442,7 +589,9 @@
     const gt = getGoogletag();
     const out = {};
 
-    if (!gt) return out;
+    if (!gt) {
+      return out;
+    }
 
     try {
       const pubads = gt.pubads();
@@ -452,9 +601,9 @@
           ? pubads.getTargetingKeys()
           : [];
 
-      keys.forEach(k => {
+      keys.forEach(key => {
         try {
-          out[k] = pubads.getTargeting(k);
+          out[key] = pubads.getTargeting(key);
         } catch (_) {}
       });
     } catch (_) {}
@@ -464,115 +613,846 @@
 
   function getResponseInfo(slot) {
     try {
-      return slot &&
+      if (
+        slot &&
         typeof slot.getResponseInformation === "function"
-        ? slot.getResponseInformation()
-        : null;
+      ) {
+        return slot.getResponseInformation();
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  function firstTarget(targeting, key) {
+    const value =
+      targeting &&
+      targeting[key];
+
+    if (Array.isArray(value)) {
+      return value.length
+        ? value[0]
+        : "";
+    }
+
+    return value ?? "";
+  }
+
+  function parseNestedParams(raw) {
+    const out = {};
+
+    if (!raw) {
+      return out;
+    }
+
+    let decoded = String(raw);
+
+    for (let i = 0; i < 3; i++) {
+      try {
+        const next = decodeURIComponent(decoded);
+
+        if (next === decoded) {
+          break;
+        }
+
+        decoded = next;
+      } catch (_) {
+        break;
+      }
+    }
+
+    decoded
+      .replace(/^\?/, "")
+      .split("&")
+      .forEach(part => {
+        if (!part) {
+          return;
+        }
+
+        const eq = part.indexOf("=");
+
+        let key;
+        let value;
+
+        if (eq === -1) {
+          key = part;
+          value = "";
+        } else {
+          key = part.slice(0, eq);
+          value = part.slice(eq + 1);
+        }
+
+        try {
+          key = decodeURIComponent(key);
+        } catch (_) {}
+
+        try {
+          value = decodeURIComponent(value);
+        } catch (_) {}
+
+        if (key) {
+          out[key] = value;
+        }
+      });
+
+    return out;
+  }
+
+  function getPerformanceResources() {
+    try {
+      return performance
+        .getEntriesByType("resource")
+        .map(entry => ({
+          url: String(entry.name || ""),
+          startTime: entry.startTime || 0,
+          duration: entry.duration || 0,
+          transferSize: entry.transferSize || 0
+        }));
     } catch (_) {
+      return [];
+    }
+  }
+
+  function isGamRequestUrl(url) {
+    return (
+      /(?:securepubads|pagead2|googleads)\.(?:g\.doubleclick|googlesyndication)\.com/i.test(
+        url
+      ) &&
+      /\/gampad\/ads|\/pagead\/ads/i.test(url)
+    );
+  }
+
+  function parseGamRequest(url) {
+    const out = {
+      url,
+      params: {},
+      prevScp: {},
+      custParams: {}
+    };
+
+    try {
+      const parsed = new URL(url);
+
+      parsed.searchParams.forEach((value, key) => {
+        out.params[key] = value;
+      });
+
+      out.prevScp =
+        parseNestedParams(
+          out.params.prev_scp || ""
+        );
+
+      out.custParams =
+        parseNestedParams(
+          out.params.cust_params || ""
+        );
+    } catch (_) {}
+
+    return out;
+  }
+
+  function getRequestAdUnitPath(parsed) {
+    const p = parsed.params || {};
+
+    if (p.iu) {
+      return decodeURIComponent(p.iu);
+    }
+
+    if (p.iu_parts) {
+      const parts =
+        String(p.iu_parts)
+          .split(",")
+          .filter(Boolean);
+
+      if (parts.length) {
+        return "/" + parts.join("/");
+      }
+    }
+
+    return "";
+  }
+
+  function requestMatchesSlot(parsed, slotData) {
+    const p = parsed.params || {};
+    const prev = parsed.prevScp || {};
+
+    const divId =
+      String(slotData.divId || "");
+
+    const path =
+      String(slotData.adUnitPath || "");
+
+    if (
+      divId &&
+      p.dids &&
+      String(p.dids)
+        .split(",")
+        .includes(divId)
+    ) {
+      return {
+        matched: true,
+        score: 100,
+        reason: "dids exact DIV match"
+      };
+    }
+
+    if (
+      divId &&
+      prev.hb_div_id === divId
+    ) {
+      return {
+        matched: true,
+        score: 95,
+        reason: "prev_scp hb_div_id exact match"
+      };
+    }
+
+    const requestPath =
+      getRequestAdUnitPath(parsed);
+
+    if (
+      requestPath &&
+      path &&
+      requestPath === path
+    ) {
+      return {
+        matched: true,
+        score: 90,
+        reason: "exact ad unit path match"
+      };
+    }
+
+    if (
+      requestPath &&
+      path &&
+      (
+        requestPath.endsWith(path) ||
+        path.endsWith(requestPath)
+      )
+    ) {
+      return {
+        matched: true,
+        score: 70,
+        reason: "ad unit path suffix match"
+      };
+    }
+
+    return {
+      matched: false,
+      score: 0,
+      reason: ""
+    };
+  }
+
+  function findGamRequests(slotData) {
+    return getPerformanceResources()
+      .filter(resource =>
+        isGamRequestUrl(resource.url)
+      )
+      .map(resource => {
+        const parsed =
+          parseGamRequest(resource.url);
+
+        const match =
+          requestMatchesSlot(
+            parsed,
+            slotData
+          );
+
+        return {
+          ...resource,
+          parsed,
+          match
+        };
+      })
+      .filter(item => item.match.matched)
+      .sort((a, b) => {
+        if (
+          b.match.score !==
+          a.match.score
+        ) {
+          return (
+            b.match.score -
+            a.match.score
+          );
+        }
+
+        return (
+          b.startTime -
+          a.startTime
+        );
+      });
+  }
+
+  function getBestGamRequest(slotData) {
+    const requests =
+      findGamRequests(slotData);
+
+    return requests.length
+      ? requests[0]
+      : null;
+  }
+
+  function getHbFromRequest(request) {
+    if (
+      !request ||
+      !request.parsed
+    ) {
       return null;
     }
-  }
 
-  function normalizeBidList(resp) {
-    if (!resp) return [];
+    const p =
+      request.parsed.params || {};
 
-    if (Array.isArray(resp)) {
-      return resp;
-    }
+    const prev =
+      request.parsed.prevScp || {};
 
-    if (Array.isArray(resp.bids)) {
-      return resp.bids;
-    }
+    const cust =
+      request.parsed.custParams || {};
 
-    return [];
-  }
-
-  function getAllBidResponses() {
-    const pb = getPbjs();
-
-    if (!pb || typeof pb.getBidResponses !== "function") {
-      return {};
-    }
-
-    try {
-      return pb.getBidResponses() || {};
-    } catch (_) {
-      return {};
-    }
-  }
-
-  function getWinningBids() {
-    const pb = getPbjs();
-
-    if (!pb) return [];
-
-    try {
-      if (typeof pb.getAllWinningBids === "function") {
-        return pb.getAllWinningBids() || [];
+    const get = key => {
+      if (
+        prev[key] !== undefined &&
+        prev[key] !== ""
+      ) {
+        return prev[key];
       }
 
-      if (typeof pb.getAllPrebidWinningBids === "function") {
-        return pb.getAllPrebidWinningBids() || [];
+      if (
+        p[key] !== undefined &&
+        p[key] !== ""
+      ) {
+        return p[key];
+      }
+
+      if (
+        cust[key] !== undefined &&
+        cust[key] !== ""
+      ) {
+        return cust[key];
+      }
+
+      return "";
+    };
+
+    const bidder =
+      get("hb_bidder");
+
+    const bucket =
+      get("hb_pb");
+
+    const adId =
+      get("hb_adid");
+
+    const size =
+      get("hb_size");
+
+    const format =
+      get("hb_format");
+
+    const version =
+      get("hb_ver");
+
+    const divId =
+      get("hb_div_id");
+
+    const siteId =
+      get("hb_site_id");
+
+    const buyerId =
+      get("hb_buyer_id");
+
+    const overrideId =
+      get("hb_override_id");
+
+    const requestId =
+      get("hb_r_id");
+
+    const rfBid =
+      get("hb_rfBid");
+
+    const strategy =
+      cust.hb_strategy ||
+      get("hb_strategy");
+
+    const vmhbmp =
+      get("is_vmhbmp");
+
+    const detected = Boolean(
+      bidder ||
+      bucket ||
+      adId ||
+      size ||
+      format ||
+      version ||
+      divId ||
+      siteId ||
+      buyerId ||
+      overrideId ||
+      requestId ||
+      rfBid ||
+      vmhbmp ||
+      strategy
+    );
+
+    if (!detected) {
+      return null;
+    }
+
+    return {
+      detected: true,
+      bidder,
+      bucket,
+      adId,
+      size,
+      format,
+      version,
+      divId,
+      siteId,
+      buyerId,
+      overrideId,
+      requestId,
+      rfBid,
+      strategy,
+      vmhbmp
+    };
+  }
+
+  function normalizePbResponseObject(raw) {
+    const bids = [];
+
+    if (!raw) {
+      return bids;
+    }
+
+    if (Array.isArray(raw)) {
+      raw.forEach(item => {
+        if (
+          item &&
+          typeof item === "object"
+        ) {
+          bids.push(item);
+        }
+      });
+
+      return bids;
+    }
+
+    if (
+      raw &&
+      Array.isArray(raw.bids)
+    ) {
+      raw.bids.forEach(item => {
+        if (
+          item &&
+          typeof item === "object"
+        ) {
+          bids.push(item);
+        }
+      });
+
+      return bids;
+    }
+
+    return bids;
+  }
+
+  function getPbjsBids() {
+    const pbjs = getPbjs();
+    const bids = [];
+
+    if (!pbjs) {
+      return bids;
+    }
+
+    try {
+      if (
+        typeof pbjs.getBidResponses ===
+        "function"
+      ) {
+        const responses =
+          pbjs.getBidResponses() || {};
+
+        Object.keys(responses)
+          .forEach(adUnitCode => {
+            normalizePbResponseObject(
+              responses[adUnitCode]
+            ).forEach(bid => {
+              bids.push({
+                ...bid,
+                __source: "pbjs",
+                __adUnitCode:
+                  bid.adUnitCode ||
+                  adUnitCode
+              });
+            });
+          });
+      }
+    } catch (_) {}
+
+    return bids;
+  }
+
+  function getPbjsWinningBids() {
+    const pbjs = getPbjs();
+
+    if (!pbjs) {
+      return [];
+    }
+
+    try {
+      if (
+        typeof pbjs.getAllWinningBids ===
+        "function"
+      ) {
+        return (
+          pbjs.getAllWinningBids() || []
+        );
+      }
+    } catch (_) {}
+
+    try {
+      if (
+        typeof pbjs.getAllPrebidWinningBids ===
+        "function"
+      ) {
+        return (
+          pbjs.getAllPrebidWinningBids() ||
+          []
+        );
       }
     } catch (_) {}
 
     return [];
   }
 
-  function getPbEvents() {
-    const pb = getPbjs();
-
-    if (!pb || typeof pb.getEvents !== "function") {
-      return [];
+  function looksLikeBidObject(obj) {
+    if (
+      !obj ||
+      typeof obj !== "object"
+    ) {
+      return false;
     }
+
+    let bidder = "";
+    let cpm = null;
 
     try {
-      return pb.getEvents() || [];
+      bidder =
+        obj.bidder ||
+        obj.bidderCode ||
+        obj.bidderName ||
+        obj.ssp ||
+        obj.partner ||
+        "";
+
+      cpm =
+        obj.cpm ??
+        obj.price ??
+        obj.bidPrice ??
+        obj.bid ??
+        null;
     } catch (_) {
-      return [];
+      return false;
     }
+
+    return (
+      Boolean(bidder) &&
+      safeNumber(cpm) !== null
+    );
   }
 
-  function getHbTargeting(targeting) {
-    const out = {};
+  function normalizeRuntimeBid(obj, sourceName) {
+    let bidder = "";
+    let cpm = null;
+    let currency = "USD";
+    let adUnitCode = "";
+    let size = "";
+    let adId = "";
+    let responseTime = null;
+    let status = "";
 
-    Object.keys(targeting || {}).forEach(k => {
-      if (/^hb_/i.test(k)) {
-        out[k] = targeting[k];
+    try {
+      bidder =
+        obj.bidder ||
+        obj.bidderCode ||
+        obj.bidderName ||
+        obj.ssp ||
+        obj.partner ||
+        "";
+
+      cpm =
+        obj.cpm ??
+        obj.price ??
+        obj.bidPrice ??
+        obj.bid ??
+        null;
+
+      currency =
+        obj.currency ||
+        obj.cur ||
+        "USD";
+
+      adUnitCode =
+        obj.adUnitCode ||
+        obj.adunitCode ||
+        obj.adUnit ||
+        obj.slotId ||
+        obj.divId ||
+        "";
+
+      size =
+        obj.size ||
+        (
+          obj.width &&
+          obj.height
+            ? `${obj.width}x${obj.height}`
+            : ""
+        );
+
+      adId =
+        obj.adId ||
+        obj.adid ||
+        obj.bidId ||
+        obj.requestId ||
+        "";
+
+      responseTime =
+        obj.timeToRespond ??
+        obj.responseTime ??
+        obj.latency ??
+        null;
+
+      status =
+        obj.status ||
+        obj.statusMessage ||
+        "";
+    } catch (_) {}
+
+    return {
+      bidder: String(bidder || ""),
+      cpm: safeNumber(cpm),
+      currency: String(currency || "USD"),
+      adUnitCode: String(adUnitCode || ""),
+      size: String(size || ""),
+      adId: String(adId || ""),
+      responseTime:
+        safeNumber(responseTime),
+      status: String(status || ""),
+      __source: sourceName
+    };
+  }
+
+  function discoverRuntimeBids() {
+    const found = [];
+    const seen = new WeakSet();
+
+    const ignoredGlobals = new Set([
+      "window",
+      "self",
+      "top",
+      "parent",
+      "frames",
+      "document",
+      "location",
+      "history",
+      "navigator",
+      "performance",
+      "localStorage",
+      "sessionStorage",
+      "indexedDB",
+      "chrome"
+    ]);
+
+    let globalNames = [];
+
+    try {
+      globalNames =
+        Object.getOwnPropertyNames(window);
+    } catch (_) {
+      return found;
+    }
+
+    const likelyNames =
+      globalNames.filter(name =>
+        /bid|header|auction|prebid|hb|bmt|monet|adtech|ssp|wrapper/i.test(
+          name
+        )
+      );
+
+    const namesToInspect =
+      [...new Set(likelyNames)]
+        .slice(0, 100);
+
+    const inspect = (
+      value,
+      sourceName,
+      depth
+    ) => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return;
+      }
+
+      if (
+        typeof value !== "object"
+      ) {
+        return;
+      }
+
+      if (seen.has(value)) {
+        return;
+      }
+
+      seen.add(value);
+
+      if (looksLikeBidObject(value)) {
+        const bid =
+          normalizeRuntimeBid(
+            value,
+            sourceName
+          );
+
+        if (
+          bid.bidder &&
+          bid.cpm !== null
+        ) {
+          found.push(bid);
+        }
+      }
+
+      if (depth >= 3) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        const limit =
+          Math.min(value.length, 100);
+
+        for (
+          let i = 0;
+          i < limit;
+          i++
+        ) {
+          try {
+            inspect(
+              value[i],
+              sourceName,
+              depth + 1
+            );
+          } catch (_) {}
+        }
+
+        return;
+      }
+
+      let keys = [];
+
+      try {
+        keys =
+          Object.keys(value)
+            .slice(0, 100);
+      } catch (_) {
+        return;
+      }
+
+      keys.forEach(key => {
+        if (
+          /^__react|^webkit|^ownerDocument$/i.test(
+            key
+          )
+        ) {
+          return;
+        }
+
+        let child;
+
+        try {
+          child = value[key];
+        } catch (_) {
+          return;
+        }
+
+        inspect(
+          child,
+          `${sourceName}.${key}`,
+          depth + 1
+        );
+      });
+    };
+
+    namesToInspect.forEach(name => {
+      if (ignoredGlobals.has(name)) {
+        return;
+      }
+
+      try {
+        inspect(
+          window[name],
+          `window.${name}`,
+          0
+        );
+      } catch (_) {}
+    });
+
+    const unique = [];
+    const uniqueKeys = new Set();
+
+    found.forEach(bid => {
+      const key = [
+        bid.bidder,
+        bid.cpm,
+        bid.currency,
+        bid.adUnitCode,
+        bid.adId
+      ].join("|");
+
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        unique.push(bid);
       }
     });
 
-    return out;
+    return unique;
   }
 
-  function firstTarget(targeting, key) {
-    const val = targeting && targeting[key];
-
-    if (Array.isArray(val)) {
-      return val[0] ?? "";
+  function bidMatchesSlot(
+    bid,
+    slotData
+  ) {
+    if (!bid) {
+      return false;
     }
 
-    return val ?? "";
-  }
+    const code =
+      String(
+        bid.adUnitCode ||
+        bid.__adUnitCode ||
+        ""
+      );
 
-  function bidMatchesSlot(bid, slotData) {
-    if (!bid) return false;
+    const div =
+      String(slotData.divId || "");
 
-    const code = String(
-      bid.adUnitCode ||
-      bid.adUnit ||
-      ""
-    );
-
-    const div = String(slotData.divId || "");
-    const path = String(slotData.adUnitPath || "");
+    const path =
+      String(
+        slotData.adUnitPath || ""
+      );
 
     if (
       code &&
-      (
-        code === div ||
-        code === path
-      )
+      div &&
+      code === div
+    ) {
+      return true;
+    }
+
+    if (
+      code &&
+      path &&
+      code === path
     ) {
       return true;
     }
@@ -588,26 +1468,41 @@
       return true;
     }
 
-    const hbAdId = firstTarget(
-      slotData.targeting,
-      "hb_adid"
-    );
+    const adId =
+      String(
+        bid.adId ||
+        bid.bidId ||
+        ""
+      );
+
+    const requestHbAdId =
+      slotData.hbRequest &&
+      slotData.hbRequest.adId
+        ? String(
+            slotData.hbRequest.adId
+          )
+        : "";
 
     if (
-      hbAdId &&
-      String(bid.adId || "") === String(hbAdId)
+      adId &&
+      requestHbAdId &&
+      adId === requestHbAdId
     ) {
       return true;
     }
 
-    const bidAdId =
-      bid.adserverTargeting &&
-      bid.adserverTargeting.hb_adid;
+    const hbAdId =
+      String(
+        firstTarget(
+          slotData.targeting,
+          "hb_adid"
+        ) || ""
+      );
 
     if (
+      adId &&
       hbAdId &&
-      bidAdId &&
-      String(bidAdId) === String(hbAdId)
+      adId === hbAdId
     ) {
       return true;
     }
@@ -615,335 +1510,597 @@
     return false;
   }
 
-  function findBidsForSlot(slotData) {
-    const all = getAllBidResponses();
+  function collectHbBids(slotData) {
     const bids = [];
 
-    Object.keys(all || {}).forEach(code => {
-      normalizeBidList(all[code]).forEach(bid => {
-        if (bidMatchesSlot(bid, slotData)) {
-          bids.push(bid);
+    getPbjsBids()
+      .forEach(bid => {
+        if (
+          bidMatchesSlot(
+            bid,
+            slotData
+          )
+        ) {
+          bids.push({
+            bidder:
+              bid.bidder ||
+              bid.bidderCode ||
+              "Unknown",
+            cpm:
+              safeNumber(bid.cpm),
+            currency:
+              bid.currency || "USD",
+            size:
+              bid.size ||
+              (
+                bid.width &&
+                bid.height
+                  ? `${bid.width}x${bid.height}`
+                  : ""
+              ),
+            adId:
+              bid.adId || "",
+            responseTime:
+              safeNumber(
+                bid.timeToRespond
+              ),
+            bucket:
+              bid.adserverTargeting
+                ? (
+                    bid.adserverTargeting.hb_pb ||
+                    ""
+                  )
+                : "",
+            status:
+              bid.statusMessage ||
+              bid.status ||
+              "",
+            source: "Prebid runtime",
+            raw: bid
+          });
         }
       });
+
+    discoverRuntimeBids()
+      .forEach(bid => {
+        if (
+          bidMatchesSlot(
+            bid,
+            slotData
+          )
+        ) {
+          bids.push({
+            bidder:
+              bid.bidder,
+            cpm:
+              bid.cpm,
+            currency:
+              bid.currency || "USD",
+            size:
+              bid.size,
+            adId:
+              bid.adId,
+            responseTime:
+              bid.responseTime,
+            bucket: "",
+            status:
+              bid.status,
+            source:
+              bid.__source,
+            raw: bid
+          });
+        }
+      });
+
+    if (
+      slotData.hbRequest &&
+      slotData.hbRequest.bidder
+    ) {
+      const hr =
+        slotData.hbRequest;
+
+      const already =
+        bids.some(bid =>
+          String(bid.bidder) ===
+          String(hr.bidder)
+        );
+
+      if (!already) {
+        bids.push({
+          bidder:
+            hr.bidder,
+          cpm: null,
+          currency: "USD",
+          size:
+            hr.size || "",
+          adId:
+            hr.adId || "",
+          responseTime: null,
+          bucket:
+            hr.bucket || "",
+          status:
+            "Sent to GAM",
+          source:
+            "GAM request",
+          raw: hr
+        });
+      }
+    }
+
+    const unique = [];
+    const seen = new Set();
+
+    bids.forEach(bid => {
+      const key = [
+        bid.bidder,
+        bid.cpm,
+        bid.bucket,
+        bid.adId,
+        bid.size
+      ].join("|");
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(bid);
+      }
     });
 
-    if (bids.length) {
-      return bids;
-    }
+    unique.sort((a, b) => {
+      const ac =
+        a.cpm === null
+          ? -1
+          : a.cpm;
 
-    const hbAdId = firstTarget(
-      slotData.targeting,
-      "hb_adid"
+      const bc =
+        b.cpm === null
+          ? -1
+          : b.cpm;
+
+      return bc - ac;
+    });
+
+    return unique;
+  }
+
+  function findPbWinningBid(
+    slotData
+  ) {
+    const winners =
+      getPbjsWinningBids();
+
+    return (
+      winners.find(bid =>
+        bidMatchesSlot(
+          bid,
+          slotData
+        )
+      ) || null
     );
-
-    if (hbAdId) {
-      Object.keys(all || {}).forEach(code => {
-        normalizeBidList(all[code]).forEach(bid => {
-          if (
-            String(bid.adId || "") === String(hbAdId)
-          ) {
-            bids.push(bid);
-          }
-        });
-      });
-    }
-
-    return bids;
   }
 
-  function findWinningBidForSlot(slotData, bids) {
-    const winners = getWinningBids();
-
-    const hbAdId = firstTarget(
-      slotData.targeting,
-      "hb_adid"
-    );
-
-    let win = winners.find(
-      b => bidMatchesSlot(b, slotData)
-    );
-
-    if (!win && hbAdId) {
-      win = winners.find(b =>
-        String(b.adId || "") === String(hbAdId) ||
-        String(
-          (b.adserverTargeting || {}).hb_adid || ""
-        ) === String(hbAdId)
-      );
-    }
-
-    if (!win && hbAdId) {
-      win = bids.find(b =>
-        String(b.adId || "") === String(hbAdId) ||
-        String(
-          (b.adserverTargeting || {}).hb_adid || ""
-        ) === String(hbAdId)
-      );
-    }
-
-    return win || null;
-  }
-
-  function queryIdFromText(text) {
-    const s = String(text || "");
-
-    const patterns = [
-      /query[_\s-]?id["'=:\s]+([A-Za-z0-9_-]{12,})/i,
-      /Query ID:\s*([A-Za-z0-9_-]{12,})/i
-    ];
-
-    for (const re of patterns) {
-      const m = s.match(re);
-
-      if (m) {
-        return m[1];
-      }
-    }
-
-    return "";
-  }
-
-  function findQueryId(slotData) {
-    const candidates = [];
-
-    try {
-      performance
-        .getEntriesByType("resource")
-        .forEach(e => {
-          candidates.push(e.name || "");
-        });
-    } catch (_) {}
-
-    try {
-      document
-        .querySelectorAll("iframe[src], script[src], img[src]")
-        .forEach(el => {
-          candidates.push(el.src || "");
-        });
-    } catch (_) {}
-
-    try {
-      candidates.push(
-        document.documentElement.innerText || ""
-      );
-    } catch (_) {}
-
-    const div =
-      slotData.divId
-        ? document.getElementById(slotData.divId)
-        : null;
-
-    if (div) {
-      try {
-        candidates.push(div.innerText || "");
-        candidates.push(div.innerHTML || "");
-
-        div
-          .querySelectorAll("iframe[src], script[src], img[src]")
-          .forEach(el => {
-            candidates.push(el.src || "");
-          });
-      } catch (_) {}
-    }
-
-    for (const c of candidates) {
-      const q = queryIdFromText(c);
-
-      if (q) {
-        return q;
-      }
-    }
-
-    return "";
-  }
-
-  function findGamRequests(slotData) {
-    const entries = [];
-    const adUnitPath = String(
-      slotData.adUnitPath || ""
-    );
-
-    try {
-      performance
-        .getEntriesByType("resource")
-        .forEach(e => {
-          const url = String(e.name || "");
-
-          if (
-            !/gampad\/ads|pagead\/ads|securepubads\.g\.doubleclick\.net/i.test(url)
-          ) {
-            return;
-          }
-
-          let match = false;
-
-          try {
-            const u = new URL(url);
-
-            const iu = decodeURIComponent(
-              u.searchParams.get("iu") || ""
-            );
-
-            const prev = decodeURIComponent(
-              u.searchParams.get("prev_iu_szs") || ""
-            );
-
-            const cust = decodeURIComponent(
-              u.searchParams.get("cust_params") || ""
-            );
-
-            if (
-              iu &&
-              (
-                iu === adUnitPath ||
-                adUnitPath.includes(iu) ||
-                iu.includes(adUnitPath)
-              )
-            ) {
-              match = true;
-            }
-
-            if (
-              cust &&
-              Object.entries(
-                getHbTargeting(slotData.targeting)
-              ).some(([k, vals]) => {
-                const arr = Array.isArray(vals)
-                  ? vals
-                  : [vals];
-
-                return arr.some(v =>
-                  cust.includes(`${k}=${v}`) ||
-                  cust.includes(`${k}%3D${v}`)
-                );
-              })
-            ) {
-              match = true;
-            }
-
-            if (
-              !match &&
-              prev &&
-              slotData.sizes.some(
-                s => prev.includes(s)
-              )
-            ) {
-              match = true;
-            }
-          } catch (_) {}
-
-          if (match) {
-            entries.push({
-              url,
-              startTime: e.startTime,
-              duration: e.duration,
-              initiatorType: e.initiatorType,
-              transferSize: e.transferSize,
-              encodedBodySize: e.encodedBodySize
-            });
-          }
-        });
-    } catch (_) {}
-
-    return entries;
-  }
-
-  function parseGamRequest(url) {
+  function getHbTargeting(
+    targeting
+  ) {
     const out = {};
 
-    try {
-      const u = new URL(url);
-
-      const wanted = [
-        "iu",
-        "sz",
-        "prev_iu_szs",
-        "correlator",
-        "pvsid",
-        "output",
-        "impl",
-        "env",
-        "url",
-        "ref",
-        "description_url",
-        "gdpr",
-        "gdpr_consent",
-        "gpp",
-        "gpp_sid",
-        "us_privacy",
-        "npa",
-        "tfcd",
-        "cust_params"
-      ];
-
-      wanted.forEach(k => {
-        if (u.searchParams.has(k)) {
-          out[k] = u.searchParams.get(k);
-        }
-      });
-    } catch (_) {}
+    Object.keys(
+      targeting || {}
+    ).forEach(key => {
+      if (
+        /^hb_/i.test(key)
+      ) {
+        out[key] =
+          targeting[key];
+      }
+    });
 
     return out;
   }
 
-  function winnerType(slotData, winningBid) {
-    const li =
-      slotData.response
-        ? Number(slotData.response.lineItemId)
-        : null;
+  function getConsentStatus(
+    request
+  ) {
+    const result = {
+      gdprApplies: null,
+      consentString: null,
+      cmpPresent: null,
+      gpp: null,
+      usPrivacy: null,
+      gdprValue: "",
+      consentValue: "",
+      gppValue: "",
+      gppSid: "",
+      usPrivacyValue: ""
+    };
 
-    if (li === -2) {
+    if (
+      request &&
+      request.parsed
+    ) {
+      const p =
+        request.parsed.params || {};
+
+      if (
+        p.gdpr === "1"
+      ) {
+        result.gdprApplies =
+          true;
+      } else if (
+        p.gdpr === "0"
+      ) {
+        result.gdprApplies =
+          false;
+      }
+
+      if (
+        "gdpr_consent" in p
+      ) {
+        result.consentString =
+          Boolean(
+            p.gdpr_consent
+          );
+
+        result.consentValue =
+          p.gdpr_consent || "";
+      }
+
+      if (
+        p.gpp &&
+        p.gpp !== ""
+      ) {
+        result.gpp = true;
+        result.gppValue =
+          p.gpp;
+      } else if (
+        p.gpp_sid &&
+        p.gpp_sid !== "-1"
+      ) {
+        result.gpp = true;
+      } else if (
+        p.gpp_sid === "-1"
+      ) {
+        result.gpp = false;
+      }
+
+      result.gppSid =
+        p.gpp_sid || "";
+
+      if (
+        p.us_privacy
+      ) {
+        result.usPrivacy =
+          true;
+
+        result.usPrivacyValue =
+          p.us_privacy;
+      }
+
+      result.gdprValue =
+        p.gdpr || "";
+    }
+
+    try {
+      result.cmpPresent =
+        typeof window.__tcfapi ===
+        "function";
+    } catch (_) {
+      result.cmpPresent =
+        false;
+    }
+
+    return result;
+  }
+
+  function parseIdsFromText(
+    text,
+    divId
+  ) {
+    const result = {
+      lineItemId: "",
+      creativeId: "",
+      advertiserId: "",
+      orderId: "",
+      queryId: ""
+    };
+
+    const s =
+      String(text || "");
+
+    if (
+      divId &&
+      !s.includes(divId)
+    ) {
+      return result;
+    }
+
+    const patterns = {
+      lineItemId: [
+        /Line\s*Item(?:-|\s*)ID\s*[:=]\s*(-?\d+)/i,
+        /LineItem-ID\s*[:=]\s*(-?\d+)/i,
+        /lineItemId["'\s:=]+(-?\d+)/i
+      ],
+
+      creativeId: [
+        /Creative(?:-|\s*)ID\s*[:=]\s*(\d+)/i,
+        /creativeId["'\s:=]+(\d+)/i
+      ],
+
+      advertiserId: [
+        /Advertiser(?:-|\s*)ID\s*[:=]\s*(\d+)/i,
+        /advertiserId["'\s:=]+(\d+)/i
+      ],
+
+      orderId: [
+        /Order(?:-|\s*)ID\s*[:=]\s*(\d+)/i,
+        /Campaign(?:-|\s*)ID\s*[:=]\s*(\d+)/i,
+        /campaignId["'\s:=]+(\d+)/i
+      ],
+
+      queryId: [
+        /Query(?:-|\s*)ID\s*[:=]\s*([A-Za-z0-9_-]{12,})/i,
+        /query[_-]?id["'\s:=]+([A-Za-z0-9_-]{12,})/i
+      ]
+    };
+
+    Object.keys(patterns)
+      .forEach(key => {
+        for (
+          const regex of patterns[key]
+        ) {
+          const match =
+            s.match(regex);
+
+          if (match) {
+            result[key] =
+              match[1];
+
+            break;
+          }
+        }
+      });
+
+    return result;
+  }
+
+  function findDebugOverlayIds(
+    slotData
+  ) {
+    const divId =
+      slotData.divId;
+
+    const candidates = [];
+
+    if (!divId) {
       return {
-        label: "UNFILLED",
-        cls: "bad",
-        reason: "GAM lineItemId = -2"
+        lineItemId: "",
+        creativeId: "",
+        advertiserId: "",
+        orderId: "",
+        queryId: ""
       };
     }
 
-    if (li === -1) {
+    try {
+      const elements =
+        document.querySelectorAll(
+          "div,span,section,aside"
+        );
+
+      for (
+        let i = 0;
+        i < elements.length;
+        i++
+      ) {
+        const el =
+          elements[i];
+
+        let text = "";
+
+        try {
+          text =
+            el.innerText || "";
+        } catch (_) {
+          continue;
+        }
+
+        if (
+          !text ||
+          text.length > 4000 ||
+          !text.includes(divId)
+        ) {
+          continue;
+        }
+
+        if (
+          /LineItem|Line Item|Creative|Query-ID|Query ID/i.test(
+            text
+          )
+        ) {
+          candidates.push(text);
+        }
+      }
+    } catch (_) {}
+
+    const combined =
+      candidates.join("\n");
+
+    return parseIdsFromText(
+      combined,
+      divId
+    );
+  }
+
+  function mergeIds(
+    response,
+    overlay
+  ) {
+    const ids = {
+      lineItemId: null,
+      creativeId: null,
+      advertiserId: null,
+      orderId: null,
+      queryId: ""
+    };
+
+    if (response) {
+      if (
+        response.lineItemId !==
+        undefined &&
+        response.lineItemId !==
+        null
+      ) {
+        ids.lineItemId =
+          response.lineItemId;
+      }
+
+      if (
+        response.creativeId !==
+        undefined &&
+        response.creativeId !==
+        null
+      ) {
+        ids.creativeId =
+          response.creativeId;
+      }
+
+      if (
+        response.advertiserId !==
+        undefined &&
+        response.advertiserId !==
+        null
+      ) {
+        ids.advertiserId =
+          response.advertiserId;
+      }
+
+      if (
+        response.campaignId !==
+        undefined &&
+        response.campaignId !==
+        null
+      ) {
+        ids.orderId =
+          response.campaignId;
+      }
+    }
+
+    if (
+      (
+        ids.lineItemId === null ||
+        ids.lineItemId === ""
+      ) &&
+      overlay.lineItemId !== ""
+    ) {
+      ids.lineItemId =
+        safeNumber(
+          overlay.lineItemId
+        );
+    }
+
+    if (
+      (
+        ids.creativeId === null ||
+        ids.creativeId === ""
+      ) &&
+      overlay.creativeId
+    ) {
+      ids.creativeId =
+        safeNumber(
+          overlay.creativeId
+        );
+    }
+
+    if (
+      (
+        ids.advertiserId === null ||
+        ids.advertiserId === ""
+      ) &&
+      overlay.advertiserId
+    ) {
+      ids.advertiserId =
+        safeNumber(
+          overlay.advertiserId
+        );
+    }
+
+    if (
+      (
+        ids.orderId === null ||
+        ids.orderId === ""
+      ) &&
+      overlay.orderId
+    ) {
+      ids.orderId =
+        safeNumber(
+          overlay.orderId
+        );
+    }
+
+    if (
+      overlay.queryId
+    ) {
+      ids.queryId =
+        overlay.queryId;
+    }
+
+    return ids;
+  }
+
+  function classifyWinner(
+    slotData
+  ) {
+    const lineItemId =
+      slotData.ids.lineItemId;
+
+    if (
+      Number(lineItemId) === -2
+    ) {
       return {
-        label: "AdX",
-        cls: "adx",
-        reason: "GAM lineItemId = -1"
+        label: "UNFILLED",
+        cls: "no",
+        reason:
+          "Line item ID = -2"
       };
     }
 
     if (
-      Number.isFinite(li) &&
-      li > 0
+      Number(lineItemId) === -1
     ) {
-      const hbKeys = Object.keys(
-        slotData.hbTargeting || {}
-      );
+      return {
+        label: "AdX",
+        cls: "adx",
+        reason:
+          "Line item ID = -1"
+      };
+    }
 
+    if (
+      Number.isFinite(
+        Number(lineItemId)
+      ) &&
+      Number(lineItemId) > 0
+    ) {
       if (
-        winningBid ||
-        hbKeys.length
+        slotData.hbDetected &&
+        slotData.hbWinnerLikely
       ) {
         return {
-          label: "HEADER BIDDING / PRICE PRIORITY",
+          label:
+            "HEADER BIDDING",
           cls: "hb",
           reason:
-            winningBid
-              ? "Positive GAM line item + matched Prebid winning bid"
-              : "Positive GAM line item + hb_* targeting"
+            "Positive GAM line item + HB winner evidence"
         };
       }
 
       return {
-        label: "GAM LINE ITEM",
-        cls: "ok",
+        label:
+          "GAM LINE ITEM",
+        cls: "yes",
         reason:
-          "Positive GAM line item; no matched Prebid winner detected"
-      };
-    }
-
-    if (!slotData.response) {
-      return {
-        label: "NO RESPONSE INFO",
-        cls: "warn",
-        reason:
-          "GPT getResponseInformation() returned null"
+          slotData.hbDetected
+            ? "HB participated, but GAM returned a positive line item"
+            : "Positive GAM line item"
       };
     }
 
@@ -951,40 +2108,97 @@
       label: "UNKNOWN",
       cls: "warn",
       reason:
-        "Could not classify response"
+        "Line item ID unavailable"
     };
   }
 
+  function buildTroubleshootingUrl(
+    slotData
+  ) {
+    if (
+      !slotData.networkCode ||
+      !slotData.ids.queryId
+    ) {
+      return "";
+    }
+
+    return (
+      "https://admanager.google.com/" +
+      encodeURIComponent(
+        slotData.networkCode
+      ) +
+      "#troubleshooting/screenshot/query_id=" +
+      encodeURIComponent(
+        slotData.ids.queryId
+      )
+    );
+  }
+
   function collectSlots() {
-    const gt = getGoogletag();
-    const pageTargeting = getPageTargeting();
+    const gt =
+      getGoogletag();
+
+    state.slots = [];
+    state.ignored = [];
+
+    if (!gt) {
+      renderEmpty(
+        "GPT API is not available."
+      );
+      return;
+    }
 
     let rawSlots = [];
 
-    if (gt) {
-      try {
-        rawSlots =
-          gt.pubads().getSlots() || [];
-      } catch (_) {}
-    }
+    try {
+      rawSlots =
+        gt.pubads().getSlots() || [];
+    } catch (_) {}
 
-    state.slots = rawSlots.map(
-      (slot, idx) => {
-        const divId = (() => {
-          try {
-            return slot.getSlotElementId();
-          } catch (_) {
-            return "";
-          }
-        })();
+    const pageTargeting =
+      getPageTargeting();
 
-        const adUnitPath = (() => {
-          try {
-            return slot.getAdUnitPath();
-          } catch (_) {
-            return "";
-          }
-        })();
+    rawSlots.forEach(
+      (slot, originalIndex) => {
+        const divId =
+          getSlotDivId(slot);
+
+        const adUnitPath =
+          getAdUnitPath(slot);
+
+        const oop =
+          isOutOfPage(
+            slot,
+            adUnitPath,
+            divId
+          );
+
+        const element =
+          divId
+            ? document.getElementById(
+                divId
+              )
+            : null;
+
+        if (
+          !oop &&
+          (
+            !divId ||
+            !element
+          )
+        ) {
+          state.ignored.push({
+            originalIndex,
+            divId,
+            adUnitPath,
+            reason:
+              !divId
+                ? "No DIV ID"
+                : "DIV not found in DOM"
+          });
+
+          return;
+        }
 
         const targeting =
           getTargeting(slot);
@@ -992,121 +2206,158 @@
         const response =
           getResponseInfo(slot);
 
-        const sizes =
-          getSlotSizes(slot);
-
-        const el =
-          divId
-            ? document.getElementById(divId)
-            : null;
-
-        const data = {
-          idx,
+        const base = {
+          originalIndex,
           slot,
           divId,
           adUnitPath,
+          oop,
+          element,
           networkCode:
-            getNetworkCode(adUnitPath),
-          sizes,
+            getNetworkCode(
+              adUnitPath
+            ),
+          sizes:
+            getSlotSizes(slot),
           targeting,
-          hbTargeting:
-            getHbTargeting(targeting),
           pageTargeting,
-          response,
-          renderedSize:
-            el
-              ? `${Math.round(
-                  el.getBoundingClientRect().width
-                )}x${Math.round(
-                  el.getBoundingClientRect().height
-                )}`
-              : "—",
-          queryId: ""
+          response
         };
 
-        data.bids =
-          findBidsForSlot(data);
+        const bestRequest =
+          getBestGamRequest(base);
 
-        data.winningBid =
-          findWinningBidForSlot(
-            data,
-            data.bids
+        base.bestRequest =
+          bestRequest;
+
+        base.hbRequest =
+          getHbFromRequest(
+            bestRequest
           );
 
-        data.winner =
-          winnerType(
-            data,
-            data.winningBid
+        base.overlayIds =
+          findDebugOverlayIds(base);
+
+        base.ids =
+          mergeIds(
+            response,
+            base.overlayIds
           );
 
-        data.gamRequests =
-          findGamRequests(data);
+        base.consent =
+          getConsentStatus(
+            bestRequest
+          );
 
-        data.queryId =
-          findQueryId(data);
+        base.hbBids =
+          collectHbBids(base);
 
-        return data;
+        base.pbWinningBid =
+          findPbWinningBid(base);
+
+        base.hbDetected =
+          Boolean(
+            base.hbRequest ||
+            base.hbBids.length ||
+            Object.keys(
+              getHbTargeting(
+                targeting
+              )
+            ).length
+          );
+
+        const requestBidder =
+          base.hbRequest
+            ? base.hbRequest.bidder
+            : "";
+
+        const topBid =
+          base.hbBids.length
+            ? base.hbBids[0]
+            : null;
+
+        base.topBid =
+          topBid;
+
+        base.hbWinnerLikely =
+          Boolean(
+            base.pbWinningBid ||
+            (
+              topBid &&
+              requestBidder &&
+              topBid.bidder ===
+                requestBidder
+            )
+          );
+
+        base.winner =
+          classifyWinner(base);
+
+        if (element) {
+          try {
+            const rect =
+              element.getBoundingClientRect();
+
+            base.domSize =
+              `${Math.round(rect.width)}x${Math.round(rect.height)}`;
+          } catch (_) {
+            base.domSize =
+              "—";
+          }
+        } else {
+          base.domSize =
+            "OUT OF PAGE";
+        }
+
+        state.slots.push(base);
       }
     );
 
     $("#slotCount").textContent =
-      `${state.slots.length} slot${
-        state.slots.length === 1
-          ? ""
-          : "s"
-      }`;
+      `${state.slots.length} active`;
+
+    $("#ignoredBtn").textContent =
+      `Ignored: ${state.ignored.length}`;
 
     select.innerHTML = "";
 
     if (!state.slots.length) {
-      const opt =
-        document.createElement("option");
-
-      opt.textContent =
-        "No GPT slots detected";
-
-      opt.value = "";
-
-      select.appendChild(opt);
-
-      body.innerHTML = `
-        <div class="empty">
-          No GPT slots found on this page.
-          <br><br>
-          GPT API ready:
-          <b>${getGoogletag() ? "yes" : "no"}</b>
-          <br>
-          Prebid detected:
-          <b>${getPbjs() ? "yes" : "no"}</b>
-        </div>
-      `;
-
-      $("#foot").textContent =
-        `GPT ${getGoogletag() ? "✓" : "✕"} · ` +
-        `Prebid ${getPbjs() ? "✓" : "✕"}`;
+      renderEmpty(
+        "No active GPT slots found."
+      );
 
       return;
     }
 
-    state.slots.forEach((s, i) => {
-      const opt =
-        document.createElement("option");
+    state.slots.forEach(
+      (slotData, index) => {
+        const option =
+          document.createElement(
+            "option"
+          );
 
-      const li =
-        s.response
-          ? s.response.lineItemId
-          : "—";
+        const li =
+          slotData.ids.lineItemId ===
+            null ||
+          slotData.ids.lineItemId ===
+            undefined
+            ? "?"
+            : slotData.ids.lineItemId;
 
-      opt.value =
-        String(i);
+        option.value =
+          String(index);
 
-      opt.textContent =
-        `${i + 1}. ` +
-        `${s.adUnitPath || s.divId || "slot"} · ` +
-        `LI ${li}`;
+        option.textContent =
+          `${index + 1}. ` +
+          `${slotData.adUnitPath || slotData.divId || "slot"}` +
+          `${slotData.oop ? " · OOP" : ""}` +
+          ` · LI ${li}`;
 
-      select.appendChild(opt);
-    });
+        select.appendChild(
+          option
+        );
+      }
+    );
 
     if (
       state.selected >=
@@ -1121,796 +2372,761 @@
     renderSelected();
   }
 
-  function kv(k, v, cls = "") {
+  function renderEmpty(message) {
+    body.innerHTML = `
+      <div class="empty">
+        ${esc(message)}
+      </div>
+    `;
+
+    $("#footer").textContent =
+      `GPT ${getGoogletag() ? "✓" : "✕"}`;
+  }
+
+  function renderBidTable(
+    slotData
+  ) {
+    const bids =
+      slotData.hbBids || [];
+
+    if (!bids.length) {
+      if (slotData.hbRequest) {
+        return `
+          <div class="grid">
+            ${kv(
+              "Bidder",
+              esc(
+                slotData.hbRequest.bidder ||
+                "—"
+              )
+            )}
+
+            ${kv(
+              "GAM bucket",
+              slotData.hbRequest.bucket !== ""
+                ? esc(
+                    money(
+                      slotData.hbRequest.bucket,
+                      "USD"
+                    )
+                  )
+                : "—"
+            )}
+
+            ${kv(
+              "Size",
+              esc(
+                slotData.hbRequest.size ||
+                "—"
+              )
+            )}
+
+            ${kv(
+              "Status",
+              `<span class="yes">SENT TO GAM</span>`
+            )}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="empty">
+          No bidder-level bid data found.
+        </div>
+      `;
+    }
+
+    const top =
+      bids.find(
+        bid =>
+          bid.cpm !== null
+      ) || null;
+
+    const rows =
+      bids.map(bid => {
+        const isTop =
+          top === bid;
+
+        let price = "—";
+
+        if (
+          bid.cpm !== null
+        ) {
+          price =
+            money(
+              bid.cpm,
+              bid.currency
+            );
+        }
+
+        let bucket =
+          bid.bucket || "";
+
+        if (
+          !bucket &&
+          slotData.hbRequest &&
+          slotData.hbRequest.bidder ===
+            bid.bidder
+        ) {
+          bucket =
+            slotData.hbRequest.bucket ||
+            "";
+        }
+
+        let response = "—";
+
+        if (
+          bid.responseTime !== null
+        ) {
+          response =
+            `${Math.round(
+              bid.responseTime
+            )} ms`;
+        } else if (
+          bid.status
+        ) {
+          response =
+            bid.status;
+        }
+
+        return `
+          <tr class="${isTop ? "winner-row" : ""}">
+            <td>
+              ${isTop ? "★ " : ""}
+              ${esc(bid.bidder)}
+            </td>
+
+            <td>
+              ${esc(price)}
+            </td>
+
+            <td>
+              ${
+                bucket !== ""
+                  ? esc(
+                      money(
+                        bucket,
+                        "USD"
+                      )
+                    )
+                  : "—"
+              }
+            </td>
+
+            <td>
+              ${esc(
+                bid.size || "—"
+              )}
+            </td>
+
+            <td>
+              ${esc(response)}
+            </td>
+          </tr>
+        `;
+      }).join("");
+
     return `
-      <div class="k">${esc(k)}</div>
-      <div class="v ${cls}">${v}</div>
+      <table class="bidtable">
+        <thead>
+          <tr>
+            <th>Bidder</th>
+            <th>Bid</th>
+            <th>GAM bucket</th>
+            <th>Size</th>
+            <th>Response</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
     `;
   }
 
-  function copyButton(value) {
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
+  function renderIgnored() {
+    if (!state.showIgnored) {
       return "";
+    }
+
+    if (!state.ignored.length) {
+      return `
+        <div class="section">
+          <div class="section-title">
+            Ignored slots
+          </div>
+
+          <div class="empty">
+            None
+          </div>
+        </div>
+      `;
     }
 
     return `
-      <button
-        class="copy"
-        data-copy="${esc(String(value))}"
-      >
-        Copy
-      </button>
+      <div class="section">
+        <div class="section-title">
+          Ignored slots
+        </div>
+
+        ${state.ignored.map(item => `
+          <div class="ignored">
+            ${esc(item.adUnitPath || "Unknown slot")}
+            <br>
+            ${esc(item.divId || "No DIV")}
+            · ${esc(item.reason)}
+          </div>
+        `).join("")}
+      </div>
     `;
-  }
-
-  function buildTroubleshootingUrl(s) {
-    if (
-      !s.networkCode ||
-      !s.queryId
-    ) {
-      return "";
-    }
-
-    return (
-      `https://admanager.google.com/` +
-      `${encodeURIComponent(s.networkCode)}` +
-      `#troubleshooting/screenshot/query_id=` +
-      `${encodeURIComponent(s.queryId)}`
-    );
-  }
-
-  function getBidderName(bid) {
-    return bid
-      ? (
-          bid.bidder ||
-          bid.bidderCode ||
-          "—"
-        )
-      : "—";
-  }
-
-  function getBidPb(bid) {
-    if (!bid) return "";
-
-    const ast =
-      bid.adserverTargeting || {};
-
-    return (
-      ast.hb_pb ||
-      bid.pbCg ||
-      bid.pbAg ||
-      bid.pbDg ||
-      bid.pbHg ||
-      bid.pbMg ||
-      bid.pbLg ||
-      ""
-    );
   }
 
   function renderSelected() {
     const s =
-      state.slots[state.selected];
+      state.slots[
+        state.selected
+      ];
 
-    if (!s) return;
+    if (!s) {
+      return;
+    }
 
-    const r =
-      s.response || {};
+    const ids =
+      s.ids;
 
-    const wb =
-      s.winningBid;
+    const request =
+      s.bestRequest;
 
-    const trUrl =
-      buildTroubleshootingUrl(s);
+    const hb =
+      s.hbRequest;
 
-    const topBid =
-      [...s.bids]
-        .sort(
-          (a, b) =>
-            Number(b.cpm || 0) -
-            Number(a.cpm || 0)
-        )[0] || null;
+    const consent =
+      s.consent;
 
-    const queryHtml =
-      s.queryId
+    const troubleshootUrl =
+      buildTroubleshootingUrl(
+        s
+      );
+
+    const queryValue =
+      ids.queryId
         ? `
-          ${esc(s.queryId)}
-          ${copyButton(s.queryId)}
-          <br>
-          <a
-            href="${esc(trUrl)}"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open in GAM Troubleshooting ↗
-          </a>
+          ${esc(ids.queryId)}
+          ${copyButton(ids.queryId)}
+          ${
+            troubleshootUrl
+              ? `<br><a class="link" href="${esc(troubleshootUrl)}" target="_blank" rel="noopener noreferrer">Open in GAM Troubleshooting ↗</a>`
+              : ""
+          }
         `
-        : `
-          <span class="muted">
-            Not exposed by public GPT API / not found in page resources
-          </span>
-        `;
+        : `<span class="muted">Not available</span>`;
 
-    const responseRows = [
-      kv(
-        "Winner",
-        `<span class="${s.winner.cls}">
-          ${esc(s.winner.label)}
-        </span>`
-      ),
+    let hbSummary = "";
 
-      kv(
-        "Classification",
-        esc(s.winner.reason)
-      ),
-
-      kv(
-        "Line item ID",
-        `${esc(
-          r.lineItemId ?? "—"
-        )} ${copyButton(
-          r.lineItemId
-        )}`,
-        Number(r.lineItemId) === -2
-          ? "bad"
-          : Number(r.lineItemId) === -1
-            ? "adx"
-            : ""
-      ),
-
-      kv(
-        "Creative ID",
-        `${esc(
-          r.creativeId ?? "—"
-        )} ${copyButton(
-          r.creativeId
-        )}`
-      ),
-
-      kv(
-        "Advertiser ID",
-        `${esc(
-          r.advertiserId ?? "—"
-        )} ${copyButton(
-          r.advertiserId
-        )}`
-      ),
-
-      kv(
-        "Campaign ID",
-        `${esc(
-          r.campaignId ?? "—"
-        )} ${copyButton(
-          r.campaignId
-        )}`
-      ),
-
-      kv(
-        "Creative template",
-        esc(
-          r.creativeTemplateId ?? "—"
-        )
-      ),
-
-      kv(
-        "Query ID",
-        queryHtml
-      )
-    ].join("");
-
-    const slotRows = [
-      kv(
-        "Ad unit",
-        `${esc(
-          s.adUnitPath
-        )} ${copyButton(
-          s.adUnitPath
-        )}`
-      ),
-
-      kv(
-        "DIV",
-        `${esc(
-          s.divId
-        )} ${copyButton(
-          s.divId
-        )}`
-      ),
-
-      kv(
-        "Network",
-        esc(
-          s.networkCode || "—"
-        )
-      ),
-
-      kv(
-        "Configured sizes",
-        esc(
-          s.sizes.join(", ") || "—"
-        )
-      ),
-
-      kv(
-        "DOM box",
-        esc(
-          s.renderedSize
-        )
-      ),
-
-      kv(
-        "GPT response",
-        s.response
-          ? `<span class="ok">available</span>`
-          : `<span class="warn">null</span>`
-      )
-    ].join("");
-
-    let hbRows = "";
-
-    if (getPbjs()) {
-      hbRows += kv(
-        "Prebid",
-        `<span class="ok">detected</span>`
-      );
-
-      hbRows += kv(
-        "Matched bids",
-        esc(
-          s.bids.length
-        )
-      );
-
-      hbRows += kv(
-        "Matched winner",
-        wb
-          ? `<span class="hb">
-              ${esc(
-                getBidderName(wb)
-              )}
-            </span>`
-          : `<span class="muted">
-              none
-            </span>`
-      );
-
-      hbRows += kv(
-        "Winning exact CPM",
-        wb
-          ? esc(
-              fmtMoney(
-                wb.cpm,
-                wb.currency
-              )
-            )
-          : "—"
-      );
-
-      hbRows += kv(
-        "Winning GAM bucket",
-        wb
-          ? esc(
-              getBidPb(wb) ||
-              "—"
-            )
-          : "—"
-      );
-
-      hbRows += kv(
-        "Best returned bid",
-        topBid
-          ? `${esc(
-              getBidderName(topBid)
-            )} · ${esc(
-              fmtMoney(
-                topBid.cpm,
-                topBid.currency
-              )
-            )}`
-          : "—"
-      );
-
-      hbRows += kv(
-        "hb_bidder",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_bidder"
-          ) || "—"
-        )
-      );
-
-      hbRows += kv(
-        "hb_pb",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_pb"
-          ) || "—"
-        )
-      );
-
-      hbRows += kv(
-        "hb_adid",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_adid"
-          ) || "—"
-        )
-      );
-
-      hbRows += kv(
-        "hb_size",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_size"
-          ) || "—"
-        )
-      );
-
-      hbRows += kv(
-        "hb_format",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_format"
-          ) || "—"
-        )
-      );
-
-      hbRows += kv(
-        "hb_source",
-        esc(
-          firstTarget(
-            s.targeting,
-            "hb_source"
-          ) || "—"
-        )
-      );
+    if (!s.hbDetected) {
+      hbSummary +=
+        kv(
+          "HB detected",
+          `<span class="no">NO</span>`
+        );
     } else {
-      hbRows = kv(
-        "Prebid",
-        `<span class="muted">
-          not detected
-        </span>`
-      );
-    }
+      hbSummary +=
+        kv(
+          "HB detected",
+          `<span class="yes">YES</span>`
+        );
 
-    let bidTable = `
-      <div class="empty">
-        No matching Prebid bids found for this slot.
-      </div>
-    `;
-
-    if (s.bids.length) {
-      const winnerAdId =
-        wb
-          ? String(wb.adId || "")
-          : "";
-
-      const rows =
-        [...s.bids]
-          .sort(
-            (a, b) =>
-              Number(b.cpm || 0) -
-              Number(a.cpm || 0)
-          )
-          .map(b => {
-            const isWin =
-              winnerAdId &&
-              String(b.adId || "") ===
-              winnerAdId;
-
-            const meta =
-              b.meta || {};
-
-            const adv =
-              Array.isArray(
-                meta.advertiserDomains
-              )
-                ? meta.advertiserDomains.join(", ")
-                : (
-                    meta.advertiserName ||
-                    ""
-                  );
-
-            return `
-              <tr class="${
-                isWin
-                  ? "winnerRow"
-                  : ""
-              }">
-                <td>
-                  ${
-                    isWin
-                      ? "★ "
-                      : ""
-                  }
-                  ${esc(
-                    getBidderName(b)
-                  )}
-                </td>
-
-                <td>
-                  ${esc(
-                    fmtMoney(
-                      b.cpm,
-                      b.currency
-                    )
-                  )}
-                </td>
-
-                <td>
-                  ${esc(
-                    getBidPb(b) ||
-                    "—"
-                  )}
-                </td>
-
-                <td>
-                  ${esc(
-                    b.timeToRespond ??
-                    "—"
-                  )}${
-                    b.timeToRespond != null
-                      ? " ms"
-                      : ""
-                  }
-                </td>
-
-                <td>
-                  ${esc(
-                    b.size ||
-                    (
-                      b.width &&
-                      b.height
-                        ? `${b.width}x${b.height}`
-                        : "—"
-                    )
-                  )}
-                </td>
-
-                <td>
-                  ${esc(
-                    adv || "—"
-                  )}
-                </td>
-              </tr>
-            `;
-          })
-          .join("");
-
-      bidTable = `
-        <table class="bidtable">
-          <thead>
-            <tr>
-              <th>Bidder</th>
-              <th>CPM</th>
-              <th>Bucket</th>
-              <th>RTT</th>
-              <th>Size</th>
-              <th>Advertiser</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      `;
-    }
-
-    const hbTargetText =
-      Object.keys(
-        s.hbTargeting
-      ).length
-        ? json(
-            s.hbTargeting
-          )
-        : "No hb_* keys on slot.";
-
-    const allTargetText =
-      json(
-        s.targeting
-      );
-
-    const pageTargetText =
-      json(
-        s.pageTargeting
-      );
-
-    let requestHtml = `
-      <div class="empty">
-        No matching GAM request found in PerformanceResourceTiming.
-      </div>
-    `;
-
-    if (s.gamRequests.length) {
-      requestHtml =
-        s.gamRequests
-          .map((req, i) => {
-            const parsed =
-              parseGamRequest(
-                req.url
-              );
-
-            return `
-              <div
-                style="
-                  border-bottom:
-                  1px solid #27303b
-                "
-              >
-                <div class="grid">
-                  ${kv(
-                    `Request ${i + 1}`,
-                    `<span class="mono">
-                      ${esc(
-                        Math.round(
-                          req.duration
-                        )
-                      )} ms
-                    </span>`
-                  )}
-
-                  ${kv(
-                    "Start",
-                    `<span class="mono">
-                      ${esc(
-                        Math.round(
-                          req.startTime
-                        )
-                      )} ms
-                    </span>`
-                  )}
-
-                  ${kv(
-                    "Transfer",
-                    `<span class="mono">
-                      ${esc(
-                        req.transferSize ??
-                        "—"
-                      )} B
-                    </span>`
-                  )}
-                </div>
-
-                <pre class="pre">${
-                  esc(
-                    json(parsed)
-                  )
-                }</pre>
-              </div>
-            `;
-          })
-          .join("");
-    }
-
-    const eventData =
-      getPbEvents();
-
-    const relatedEvents =
-      eventData.filter(e => {
-        try {
-          const a =
-            e.args || {};
-
-          const code =
-            String(
-              a.adUnitCode ||
-              a.adUnit ||
-              a.code ||
-              e.id ||
-              ""
+      const bidder =
+        hb && hb.bidder
+          ? hb.bidder
+          : (
+              s.topBid
+                ? s.topBid.bidder
+                : ""
             );
 
-          if (
-            code &&
-            (
-              code === s.divId ||
-              code === s.adUnitPath
+      hbSummary +=
+        kv(
+          "Bidder sent to GAM",
+          bidder
+            ? `<span class="hb">${esc(bidder)}</span>`
+            : "—"
+        );
+
+      const exactBid =
+        s.topBid &&
+        s.topBid.cpm !== null
+          ? money(
+              s.topBid.cpm,
+              s.topBid.currency
             )
-          ) {
-            return true;
-          }
+          : "";
 
-          if (
-            wb &&
-            a.adId &&
-            String(a.adId) ===
-            String(wb.adId)
-          ) {
-            return true;
-          }
-        } catch (_) {}
+      hbSummary +=
+        kv(
+          "Highest exact bid",
+          exactBid
+            ? esc(exactBid)
+            : `<span class="muted">Not exposed</span>`
+        );
 
-        return false;
-      });
+      hbSummary +=
+        kv(
+          "GAM price bucket",
+          hb &&
+          hb.bucket !== ""
+            ? esc(
+                money(
+                  hb.bucket,
+                  "USD"
+                )
+              )
+            : "—"
+        );
+
+      hbSummary +=
+        kv(
+          "Size",
+          esc(
+            (
+              hb &&
+              hb.size
+            ) ||
+            (
+              s.topBid &&
+              s.topBid.size
+            ) ||
+            "—"
+          )
+        );
+
+      hbSummary +=
+        kv(
+          "Format",
+          esc(
+            (
+              hb &&
+              hb.format
+            ) ||
+            "—"
+          )
+        );
+
+      hbSummary +=
+        kv(
+          "HB Ad ID",
+          hb &&
+          hb.adId
+            ? `${esc(hb.adId)}${copyButton(hb.adId)}`
+            : "—"
+        );
+    }
+
+    const privacyRows = [
+      kv(
+        "GDPR applies",
+        yesNo(
+          consent.gdprApplies
+        )
+      ),
+
+      kv(
+        "TCF CMP",
+        yesNo(
+          consent.cmpPresent
+        )
+      ),
+
+      kv(
+        "Consent string",
+        consent.consentString === null
+          ? `<span class="muted">UNKNOWN</span>`
+          : yesNo(
+              consent.consentString
+            )
+      ),
+
+      kv(
+        "GPP",
+        consent.gpp === null
+          ? `<span class="muted">UNKNOWN</span>`
+          : yesNo(
+              consent.gpp
+            )
+      ),
+
+      kv(
+        "US Privacy",
+        consent.usPrivacy === null
+          ? `<span class="muted">UNKNOWN</span>`
+          : yesNo(
+              consent.usPrivacy
+            )
+      )
+    ].join("");
+
+    const requestInfo =
+      request
+        ? {
+            match:
+              request.match.reason,
+            duration:
+              Math.round(
+                request.duration
+              ),
+            startTime:
+              Math.round(
+                request.startTime
+              ),
+            adUnitPath:
+              getRequestAdUnitPath(
+                request.parsed
+              ),
+            dids:
+              request.parsed.params.dids ||
+              "",
+            prev_scp:
+              request.parsed.prevScp,
+            cust_params:
+              request.parsed.custParams
+          }
+        : null;
 
     body.innerHTML = `
       <div class="section">
-        <h3>Slot</h3>
+        <div class="section-title">
+          Slot
+        </div>
+
         <div class="grid">
-          ${slotRows}
+          ${kv(
+            "Ad unit",
+            `${esc(s.adUnitPath)}${copyButton(s.adUnitPath)}`
+          )}
+
+          ${kv(
+            "DIV",
+            s.oop
+              ? `<span class="hb">OUT OF PAGE</span>`
+              : `${esc(s.divId)}${copyButton(s.divId)}`
+          )}
+
+          ${kv(
+            "Configured sizes",
+            esc(
+              s.sizes.join(", ") ||
+              "—"
+            )
+          )}
+
+          ${kv(
+            "DOM size",
+            esc(
+              s.domSize
+            )
+          )}
+
+          ${kv(
+            "GAM request",
+            request
+              ? `<span class="yes">YES</span>`
+              : `<span class="no">NOT MATCHED</span>`
+          )}
         </div>
       </div>
 
       <div class="section">
-        <h3>GAM result</h3>
+        <div class="section-title">
+          Auction result
+        </div>
+
         <div class="grid">
-          ${responseRows}
+          ${kv(
+            "Winner",
+            `<span class="${s.winner.cls}">
+              ${esc(s.winner.label)}
+            </span>`
+          )}
+
+          ${kv(
+            "Line item ID",
+            ids.lineItemId !== null
+              ? `${esc(ids.lineItemId)}${copyButton(ids.lineItemId)}`
+              : `<span class="muted">Not available</span>`
+          )}
+
+          ${kv(
+            "Creative ID",
+            ids.creativeId !== null
+              ? `${esc(ids.creativeId)}${copyButton(ids.creativeId)}`
+              : `<span class="muted">Not available</span>`
+          )}
+
+          ${kv(
+            "Advertiser ID",
+            ids.advertiserId !== null
+              ? `${esc(ids.advertiserId)}${copyButton(ids.advertiserId)}`
+              : `<span class="muted">Not available</span>`
+          )}
+
+          ${kv(
+            "Order ID",
+            ids.orderId !== null
+              ? `${esc(ids.orderId)}${copyButton(ids.orderId)}`
+              : `<span class="muted">Not available</span>`
+          )}
+
+          ${kv(
+            "Query ID",
+            queryValue
+          )}
         </div>
       </div>
 
       <div class="section">
-        <h3>Header bidding</h3>
+        <div class="section-title">
+          Header Bidding
+        </div>
+
         <div class="grid">
-          ${hbRows}
+          ${hbSummary}
         </div>
       </div>
 
       <div class="section">
-        <h3>Prebid bids</h3>
-        ${bidTable}
+        <div class="section-title">
+          HB bids
+        </div>
+
+        ${renderBidTable(s)}
       </div>
 
       <div class="section">
-        <h3>
-          HB targeting sent to slot
-        </h3>
+        <div class="section-title">
+          Privacy
+        </div>
 
-        <pre class="pre">${
-          esc(
-            hbTargetText
-          )
-        }</pre>
+        <div class="grid">
+          ${privacyRows}
+        </div>
       </div>
 
-      <div class="section">
-        <h3>
-          All slot targeting
-        </h3>
-
-        <pre class="pre">${
-          esc(
-            allTargetText
-          )
-        }</pre>
-      </div>
+      ${renderIgnored()}
 
       <div class="section">
-        <h3>
-          Page targeting
-        </h3>
+        <details>
+          <summary>
+            Advanced
+          </summary>
 
-        <pre class="pre">${
-          esc(
-            pageTargetText
-          )
-        }</pre>
-      </div>
+          <div class="section-title">
+            GAM request match
+          </div>
 
-      <div class="section">
-        <h3>
-          Matched GAM network requests
-        </h3>
+          <pre>${esc(
+            stringify(
+              requestInfo
+            )
+          )}</pre>
 
-        ${requestHtml}
-      </div>
+          <div class="section-title">
+            GPT responseInformation
+          </div>
 
-      <div class="section">
-        <h3>
-          Related Prebid events
-        </h3>
+          <pre>${esc(
+            stringify(
+              s.response
+            )
+          )}</pre>
 
-        <pre class="pre">${
-          esc(
-            relatedEvents.length
-              ? json(
-                  relatedEvents
-                )
-              : "No directly matched Prebid events."
-          )
-        }</pre>
+          <div class="section-title">
+            Debug overlay IDs
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.overlayIds
+            )
+          )}</pre>
+
+          <div class="section-title">
+            Slot targeting
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.targeting
+            )
+          )}</pre>
+
+          <div class="section-title">
+            Page targeting
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.pageTargeting
+            )
+          )}</pre>
+
+          <div class="section-title">
+            Header bidding request data
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.hbRequest
+            )
+          )}</pre>
+
+          <div class="section-title">
+            Bid objects
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.hbBids
+            )
+          )}</pre>
+
+          <div class="section-title">
+            Privacy raw
+          </div>
+
+          <pre>${esc(
+            stringify({
+              gdpr:
+                consent.gdprValue,
+              gdpr_consent:
+                consent.consentValue,
+              gpp:
+                consent.gppValue,
+              gpp_sid:
+                consent.gppSid,
+              us_privacy:
+                consent.usPrivacyValue
+            })
+          )}</pre>
+        </details>
       </div>
     `;
 
+    bindCopyButtons();
+
+    $("#footer").textContent =
+      [
+        `GPT ${getGoogletag() ? "✓" : "✕"}`,
+        `HB ${s.hbDetected ? "✓" : "✕"}`,
+        `GAM request ${request ? "✓" : "✕"}`,
+        request
+          ? request.match.reason
+          : ""
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  }
+
+  function bindCopyButtons() {
     body
       .querySelectorAll(
         "[data-copy]"
       )
-      .forEach(btn => {
-        btn.addEventListener(
+      .forEach(button => {
+        button.addEventListener(
           "click",
-          async () => {
+          async event => {
+            event.stopPropagation();
+
             const value =
-              btn.getAttribute(
+              button.getAttribute(
                 "data-copy"
               ) || "";
 
             try {
-              await navigator.clipboard.writeText(
-                value
-              );
+              await navigator.clipboard
+                .writeText(value);
 
               const old =
-                btn.textContent;
+                button.textContent;
 
-              btn.textContent =
+              button.textContent =
                 "Copied";
 
-              setTimeout(
-                () => {
-                  btn.textContent =
-                    old;
-                },
-                900
-              );
+              setTimeout(() => {
+                button.textContent =
+                  old;
+              }, 800);
             } catch (_) {
-              const ta =
+              const textarea =
                 document.createElement(
                   "textarea"
                 );
 
-              ta.value =
+              textarea.value =
                 value;
 
-              document.body.appendChild(
-                ta
-              );
+              document.body
+                .appendChild(
+                  textarea
+                );
 
-              ta.select();
+              textarea.select();
 
               document.execCommand(
                 "copy"
               );
 
-              ta.remove();
+              textarea.remove();
             }
           }
         );
       });
-
-    $("#foot").textContent =
-      `GPT ${getGoogletag() ? "✓" : "✕"} · ` +
-      `Prebid ${getPbjs() ? "✓" : "✕"} · ` +
-      `${s.gamRequests.length} GAM request${
-        s.gamRequests.length === 1
-          ? ""
-          : "s"
-      } matched`;
   }
 
   function refresh() {
-    const previousDiv =
+    const current =
       state.slots[
         state.selected
-      ]?.divId || "";
+      ];
+
+    const previousDiv =
+      current
+        ? current.divId
+        : "";
+
+    const previousPath =
+      current
+        ? current.adUnitPath
+        : "";
 
     collectSlots();
 
     if (
-      previousDiv &&
-      state.slots.length
+      previousDiv ||
+      previousPath
     ) {
-      const idx =
+      const index =
         state.slots.findIndex(
-          s =>
-            s.divId ===
-            previousDiv
+          slot =>
+            (
+              previousDiv &&
+              slot.divId ===
+                previousDiv
+            ) ||
+            (
+              previousPath &&
+              slot.adUnitPath ===
+                previousPath
+            )
         );
 
-      if (idx >= 0) {
+      if (index >= 0) {
         state.selected =
-          idx;
+          index;
 
         select.value =
-          String(idx);
+          String(index);
 
         renderSelected();
       }
@@ -1929,106 +3145,95 @@
     }
   );
 
-  $("#refreshBtn").addEventListener(
-    "click",
-    refresh
-  );
+  $("#refreshBtn")
+    .addEventListener(
+      "click",
+      refresh
+    );
 
-  $("#autoBtn").addEventListener(
-    "click",
-    () => {
-      state.autoRefresh =
-        !state.autoRefresh;
+  $("#ignoredBtn")
+    .addEventListener(
+      "click",
+      () => {
+        state.showIgnored =
+          !state.showIgnored;
 
-      $("#autoBtn").textContent =
-        `Auto: ${
-          state.autoRefresh
-            ? "on"
-            : "off"
-        }`;
+        $("#ignoredBtn")
+          .textContent =
+          state.showIgnored
+            ? `Hide ignored (${state.ignored.length})`
+            : `Ignored: ${state.ignored.length}`;
 
-      if (state.timer) {
-        clearInterval(
-          state.timer
-        );
-
-        state.timer =
-          null;
+        renderSelected();
       }
+    );
 
-      if (state.autoRefresh) {
-        state.timer =
-          setInterval(
-            refresh,
-            2000
+  $("#autoBtn")
+    .addEventListener(
+      "click",
+      () => {
+        state.auto =
+          !state.auto;
+
+        $("#autoBtn")
+          .textContent =
+          `Auto: ${
+            state.auto
+              ? "on"
+              : "off"
+          }`;
+
+        if (state.timer) {
+          clearInterval(
+            state.timer
           );
-      }
-    }
-  );
 
-  $("#consoleBtn").addEventListener(
-    "click",
-    () => {
-      const gt =
-        getGoogletag();
+          state.timer =
+            null;
+        }
 
-      if (
-        gt &&
-        typeof gt.openConsole ===
-        "function"
-      ) {
-        try {
-          gt.openConsole();
-        } catch (_) {}
-      }
-    }
-  );
-
-  $("#closeBtn").addEventListener(
-    "click",
-    () => {
-      if (state.timer) {
-        clearInterval(
-          state.timer
-        );
-      }
-
-      host.remove();
-    }
-  );
-
-  try {
-    const gt =
-      getGoogletag();
-
-    if (
-      gt &&
-      gt.pubads &&
-      typeof gt.pubads().addEventListener ===
-      "function"
-    ) {
-      [
-        "slotRequested",
-        "slotResponseReceived",
-        "slotRenderEnded"
-      ].forEach(eventName => {
-        try {
-          gt
-            .pubads()
-            .addEventListener(
-              eventName,
-              () => {
-                if (
-                  state.autoRefresh
-                ) {
-                  refresh();
-                }
-              }
+        if (state.auto) {
+          state.timer =
+            setInterval(
+              refresh,
+              2000
             );
-        } catch (_) {}
-      });
-    }
-  } catch (_) {}
+        }
+      }
+    );
+
+  $("#consoleBtn")
+    .addEventListener(
+      "click",
+      () => {
+        const gt =
+          getGoogletag();
+
+        if (
+          gt &&
+          typeof gt.openConsole ===
+            "function"
+        ) {
+          try {
+            gt.openConsole();
+          } catch (_) {}
+        }
+      }
+    );
+
+  $("#closeBtn")
+    .addEventListener(
+      "click",
+      () => {
+        if (state.timer) {
+          clearInterval(
+            state.timer
+          );
+        }
+
+        host.remove();
+      }
+    );
 
   collectSlots();
 })();
