@@ -320,7 +320,7 @@
       'left:3px',
       'bottom:2px',
       'max-width:70%',
-      'background:rgba(255, 235, 175, 0.6)',
+      'background:rgba(255,235,175,0.72)',
       'backdrop-filter:blur(6px)',
       '-webkit-backdrop-filter:blur(6px)',
       'border:1px solid rgba(91,61,138,0.25)',
@@ -354,12 +354,16 @@
   const qaiStyle = document.createElement('style');
 
   qaiStyle.textContent = `
-    #qai-panel {
-      width: 560px;
-      max-width: calc(100vw - 20px);
-      max-height: 52vh;
-      overflow: hidden;
+    #qai-panel,
+    #qai-panel * {
       box-sizing: border-box;
+    }
+
+    #qai-panel {
+      width:560px;
+      max-width:calc(100vw - 20px);
+      max-height:52vh;
+      overflow:hidden;
     }
 
     #qai-body {
@@ -367,6 +371,7 @@
       flex-direction:column;
       gap:8px;
       max-height:calc(52vh - 44px);
+      min-width:0;
     }
 
     #qai-top {
@@ -374,6 +379,12 @@
       max-height:22vh;
       overflow:auto;
       padding-right:4px;
+      min-width:0;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    #qai-slots {
+      min-width:0;
     }
 
     #qai-panels {
@@ -381,6 +392,8 @@
       overflow:auto !important;
       max-height:none !important;
       padding-right:4px;
+      min-width:0;
+      -webkit-overflow-scrolling:touch;
     }
 
     #qai-panel .qai-table {
@@ -418,6 +431,7 @@
       background:rgba(245,240,255,0.25);
       backdrop-filter:blur(6px);
       -webkit-backdrop-filter:blur(6px);
+      min-width:0;
     }
 
     #qai-panel .qai-sum {
@@ -432,27 +446,128 @@
       background:rgba(255,120,120,0.22) !important;
     }
 
-    @media (max-width: 700px) {
+    #qai-panel button {
+      font:inherit;
+    }
+
+    @media (max-width:700px) {
       #qai-panel {
-        left: 6px !important;
-        right: 6px !important;
-        top: 6px !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: 70vh !important;
+        position:fixed !important;
+        left:6px !important;
+        right:auto !important;
+        top:6px !important;
+
+        width:calc(100dvw - 12px) !important;
+        max-width:calc(100dvw - 12px) !important;
+
+        max-height:75dvh !important;
+
+        margin:0 !important;
+        padding:8px !important;
+
+        overflow:hidden !important;
+
+        border-radius:10px !important;
       }
 
       #qai-body {
-        max-height: calc(70vh - 44px) !important;
+        width:100% !important;
+        max-width:100% !important;
+
+        max-height:calc(75dvh - 52px) !important;
+
+        overflow:hidden !important;
+        min-width:0 !important;
+      }
+
+      #qai-head {
+        width:100% !important;
+        max-width:100% !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
       }
 
       #qai-top {
-        max-height: 26vh !important;
-        overflow-x: auto !important;
+        width:100% !important;
+        max-width:100% !important;
+
+        max-height:28dvh !important;
+
+        overflow-x:auto !important;
+        overflow-y:auto !important;
+
+        padding-right:0 !important;
+
+        min-width:0 !important;
+
+        -webkit-overflow-scrolling:touch;
+      }
+
+      #qai-slots {
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
       }
 
       #qai-panel .qai-table {
-        min-width: 720px;
+        width:max-content !important;
+        min-width:100% !important;
+        max-width:none !important;
+
+        table-layout:auto !important;
+      }
+
+      #qai-panel .qai-table th,
+      #qai-panel .qai-table td {
+        white-space:nowrap !important;
+      }
+
+      #qai-panels {
+        width:100% !important;
+        max-width:100% !important;
+
+        overflow-x:hidden !important;
+        overflow-y:auto !important;
+
+        padding-right:0 !important;
+
+        min-width:0 !important;
+
+        -webkit-overflow-scrolling:touch;
+      }
+
+      #qai-panel .qai-det {
+        width:100% !important;
+        max-width:100% !important;
+
+        min-width:0 !important;
+
+        overflow:hidden !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel .qai-sum {
+        width:100% !important;
+        max-width:100% !important;
+
+        white-space:normal !important;
+
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel .qai-det > div {
+        max-width:100% !important;
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+      }
+
+      #qai-panel button {
+        min-height:30px;
+        padding:4px 8px;
       }
     }
   `;
@@ -462,16 +577,16 @@
   // ---------- state
 
   const S = {
-    lastScan: 0,
-    showPH: false,
-    adsense: [],
-    gam: [],
-    hbPage: {
-      prebid: false,
-      amazon: false,
-      any: false
+    lastScan:0,
+    showPH:false,
+    adsense:[],
+    gam:[],
+    hbPage:{
+      prebid:false,
+      amazon:false,
+      any:false
     },
-    collapsed: false
+    collapsed:false
   };
 
   // ---------- scanners
@@ -516,14 +631,14 @@
         !isPlaceholder;
 
       return {
-        elementId: el.id,
-        domIndex: i,
+        elementId:el.id,
+        domIndex:i,
         client,
         slot,
-        declared: ds,
-        computed: cs,
+        declared:ds,
+        computed:cs,
         format,
-        state: isPlaceholder
+        state:isPlaceholder
           ? 'placeholder'
           : (
               isUninitialized
@@ -627,7 +742,7 @@
     'right:10px',
     'top:10px',
     'z-index:2147483646',
-    'background:rgba(245,240,255,0.92)',
+    'background:rgba(245,240,255,0.94)',
     'backdrop-filter:blur(10px)',
     '-webkit-backdrop-filter:blur(10px)',
     'border:1px solid rgba(91,61,138,0.35)',
@@ -646,7 +761,8 @@
         display:flex;
         gap:8px;
         align-items:center;
-        flex-wrap:wrap
+        flex-wrap:wrap;
+        min-width:0;
       "
     >
       <b
@@ -842,7 +958,6 @@
 
       html += `
         <table class="qai-table">
-
           <thead>
             <tr>
               <th style="text-align:left;padding:4px 6px">#</th>
@@ -868,7 +983,6 @@
 
         html += `
           <tr>
-
             <td style="padding:3px 6px">
               ${i + 1}
             </td>
@@ -903,7 +1017,6 @@
             <td style="padding:3px 6px">
               ${esc(s.state)}
             </td>
-
           </tr>
         `;
       });
@@ -944,61 +1057,12 @@
 
           <thead>
             <tr>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                #
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                HB
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                AdUnitPath
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                SlotElementId
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                Sizes
-              </th>
-
-              <th
-                style="
-                  text-align:left;
-                  padding:4px 6px
-                "
-              >
-                Targeting
-              </th>
-
+              <th style="text-align:left;padding:4px 6px">#</th>
+              <th style="text-align:left;padding:4px 6px">HB</th>
+              <th style="text-align:left;padding:4px 6px">AdUnitPath</th>
+              <th style="text-align:left;padding:4px 6px">SlotElementId</th>
+              <th style="text-align:left;padding:4px 6px">Sizes</th>
+              <th style="text-align:left;padding:4px 6px">Targeting</th>
             </tr>
           </thead>
 
@@ -1024,7 +1088,6 @@
 
         html += `
           <tr>
-
             <td
               style="
                 padding:3px 6px;
@@ -1043,38 +1106,21 @@
               ${hbBadgeHTML(g.hb)}
             </td>
 
-            <td
-              style="
-                padding:3px 6px
-              "
-            >
+            <td style="padding:3px 6px">
               ${esc(g.adUnitPath)}
             </td>
 
-            <td
-              style="
-                padding:3px 6px
-              "
-            >
+            <td style="padding:3px 6px">
               ${esc(g.slotElementId)}
             </td>
 
-            <td
-              style="
-                padding:3px 6px
-              "
-            >
+            <td style="padding:3px 6px">
               ${esc(g.sizesStr)}
             </td>
 
-            <td
-              style="
-                padding:3px 6px
-              "
-            >
+            <td style="padding:3px 6px">
               ${tgt}
             </td>
-
           </tr>
         `;
       });
@@ -1108,7 +1154,7 @@
         'margin-top:2px;font-weight:600';
 
       h.textContent =
-        'Per-slot panels (scroll here)';
+        'Per-slot panels';
 
       box.appendChild(h);
     }
@@ -1371,8 +1417,8 @@ ${esc(tgt || '(none)')}
         }
 
         el.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
+          behavior:'smooth',
+          block:'center'
         });
 
         const old =
@@ -1562,11 +1608,6 @@ ${esc(tgt || '(none)')}
     expand;
 
   function init() {
-    /*
-      Для bookmarklet всегда стартуем раскрытым.
-      Старое состояние collapsed не должно мешать запуску.
-    */
-
     S.collapsed = false;
 
     try {
