@@ -1,7 +1,29 @@
 (function () {
   if (window.top !== window.self) return;
 
-  if (window.__QAI_v10) return;
+  if (window.__QAI_v10) {
+    const existingPanel = document.getElementById('qai-panel');
+    const existingIcon = document.getElementById('qai-collapsed');
+
+    if (existingPanel) {
+      existingPanel.style.display = 'block';
+      existingPanel.style.visibility = 'visible';
+      existingPanel.style.opacity = '1';
+
+      if (existingIcon) {
+        existingIcon.style.display = 'none';
+      }
+
+      try {
+        localStorage.removeItem('__qai_collapsed');
+      } catch {}
+
+      return;
+    }
+
+    window.__QAI_v10 = false;
+  }
+
   window.__QAI_v10 = true;
 
   // ---------- small helpers
@@ -89,7 +111,6 @@
     keys.forEach(key => {
       const lower = String(key).toLowerCase();
 
-      // Standard Prebid targeting
       if (
         lower === 'hb_bidder' ||
         lower === 'hb_pb' ||
@@ -108,7 +129,6 @@
         return;
       }
 
-      // Amazon Publisher Services / TAM / UAM
       if (
         lower.startsWith('amzn') ||
         lower.startsWith('amazon')
@@ -117,7 +137,6 @@
         return;
       }
 
-      // Additional common custom HB naming
       if (
         lower === 'prebid' ||
         lower === 'prebid_bidder' ||
@@ -337,8 +356,10 @@
   qaiStyle.textContent = `
     #qai-panel {
       width: 560px;
+      max-width: calc(100vw - 20px);
       max-height: 52vh;
       overflow: hidden;
+      box-sizing: border-box;
     }
 
     #qai-body {
@@ -410,9 +431,33 @@
     #qai-panel .qai-mismatch {
       background:rgba(255,120,120,0.22) !important;
     }
+
+    @media (max-width: 700px) {
+      #qai-panel {
+        left: 6px !important;
+        right: 6px !important;
+        top: 6px !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: 70vh !important;
+      }
+
+      #qai-body {
+        max-height: calc(70vh - 44px) !important;
+      }
+
+      #qai-top {
+        max-height: 26vh !important;
+        overflow-x: auto !important;
+      }
+
+      #qai-panel .qai-table {
+        min-width: 720px;
+      }
+    }
   `;
 
-  document.head.appendChild(qaiStyle);
+  (document.head || document.documentElement).appendChild(qaiStyle);
 
   // ---------- state
 
@@ -577,19 +622,22 @@
 
   panel.id = 'qai-panel';
 
-  panel.style = [
+  panel.style.cssText = [
     'position:fixed',
     'right:10px',
     'top:10px',
     'z-index:2147483646',
-    'background:rgba(245,240,255,0.25)',
-    'backdrop-filter:blur(6px)',
-    '-webkit-backdrop-filter:blur(6px)',
+    'background:rgba(245,240,255,0.92)',
+    'backdrop-filter:blur(10px)',
+    '-webkit-backdrop-filter:blur(10px)',
     'border:1px solid rgba(91,61,138,0.35)',
     'padding:10px',
     'font:12px Arial,sans-serif',
+    'color:#221a33',
     'box-shadow:0 6px 18px rgba(0,0,0,.25)',
-    'border-radius:10px'
+    'border-radius:10px',
+    'visibility:visible',
+    'opacity:1'
   ].join(';');
 
   panel.innerHTML = `
@@ -608,7 +656,7 @@
         "
         id="qai-title"
       >
-        Ad Inspector
+        Debugr
       </b>
 
       <button id="qai-r">
@@ -654,9 +702,9 @@
 
   icon.id = 'qai-collapsed';
   icon.textContent = 'Ad';
-  icon.title = 'Open Ad Inspector';
+  icon.title = 'Open Debugr';
 
-  icon.style = [
+  icon.style.cssText = [
     'position:fixed',
     'right:10px',
     'top:10px',
@@ -1480,6 +1528,12 @@ ${esc(tgt || '(none)')}
     panel.style.display =
       'block';
 
+    panel.style.visibility =
+      'visible';
+
+    panel.style.opacity =
+      '1';
+
     saveExpanded();
 
     rescan();
@@ -1508,22 +1562,30 @@ ${esc(tgt || '(none)')}
     expand;
 
   function init() {
+    /*
+      Для bookmarklet всегда стартуем раскрытым.
+      Старое состояние collapsed не должно мешать запуску.
+    */
+
+    S.collapsed = false;
+
     try {
-      S.collapsed =
-        !!localStorage.getItem(
-          '__qai_collapsed'
-        );
+      localStorage.removeItem(
+        '__qai_collapsed'
+      );
     } catch {}
 
-    if (S.collapsed) {
-      collapse();
-    } else {
-      icon.style.display =
-        'none';
+    icon.style.display =
+      'none';
 
-      panel.style.display =
-        'block';
-    }
+    panel.style.display =
+      'block';
+
+    panel.style.visibility =
+      'visible';
+
+    panel.style.opacity =
+      '1';
 
     rescan();
     renderAll();
@@ -1547,6 +1609,21 @@ ${esc(tgt || '(none)')}
         }, 3000);
       }
     );
+
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 500);
+
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 1500);
+
+    setTimeout(() => {
+      rescan();
+      renderAll();
+    }, 3000);
   }
 
   init();
