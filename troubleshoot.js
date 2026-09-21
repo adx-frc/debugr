@@ -3,14 +3,308 @@
 
   const APP_ID = "__debugr_troubleshooting__";
   const HIGHLIGHT_ID = "__debugr_slot_highlight__";
+  const CAPTURE_KEY = "__DEBUGR_HB_CAPTURE__";
+  const BIDMATIC_URL_RE = /https:\/\/sghb\.bidmatic\.io\/adunit\/v2\/multitracking/i;
 
-  const old = document.getElementById(APP_ID);
+  // ---------------------------------------------------------------------------
+  // Persistent network capture. Installed once per page and survives UI closing.
+  // It captures FUTURE Bidmatic multitracking POST bodies from fetch/XHR/beacon.
+  // ---------------------------------------------------------------------------
+
+  function ensureCaptureStore() {
+    if (window[CAPTURE_KEY]) return window[CAPTURE_KEY];
+
+    const store = {
+      installedAt: Date.now(),
+      packets: [],
+      listeners: new Set(),
+      originals: {},
+      installed: false,
+      stats: {
+        fetch: 0,
+        xhr: 0,
+        beacon: 0,
+        parseErrors: 0
+      }
+    };
+
+    window[CAPTURE_KEY] = store;
+
+    const notify = () => {
+      for (const fn of store.listeners) {
+        try {
+          fn();
+        } catch (_) {}
+      }
+    };
+
+    const bodyToText = async body => {
+      if (body == null) return "";
+
+      if (typeof body === "string") {
+        return body;
+      }
+
+      if (body instanceof URLSearchParams) {
+        return body.toString();
+      }
+
+      if (
+        typeof Blob !== "undefined" &&
+        body instanceof Blob
+      ) {
+        try {
+          return await body.text();
+        } catch (_) {
+          return "";
+        }
+      }
+
+      if (
+        typeof ArrayBuffer !== "undefined" &&
+        body instanceof ArrayBuffer
+      ) {
+        try {
+          return new TextDecoder().decode(body);
+        } catch (_) {
+          return "";
+        }
+      }
+
+      if (
+        typeof ArrayBuffer !== "undefined" &&
+        ArrayBuffer.isView(body)
+      ) {
+        try {
+          return new TextDecoder().decode(body);
+        } catch (_) {
+          return "";
+        }
+      }
+
+      if (
+        typeof FormData !== "undefined" &&
+        body instanceof FormData
+      ) {
+        const obj = {};
+
+        try {
+          body.forEach((value, key) => {
+            obj[key] =
+              typeof value === "string"
+                ? value
+                : `[${value?.constructor?.name || "Blob"}]`;
+          });
+
+          return JSON.stringify(obj);
+        } catch (_) {
+          return "";
+        }
+      }
+
+      try {
+        return JSON.stringify(body);
+      } catch (_) {
+        return String(body);
+      }
+    };
+
+    const ingest = async (url, body, transport) => {
+      const u = String(url || "");
+
+      if (!BIDMATIC_URL_RE.test(u)) {
+        return;
+      }
+
+      const text = await bodyToText(body);
+
+      let json = null;
+
+      try {
+        json = JSON.parse(text);
+      } catch (_) {
+        store.stats.parseErrors++;
+      }
+
+      store.packets.push({
+        capturedAt: Date.now(),
+        transport,
+        url: u,
+        text,
+        json
+      });
+
+      if (store.packets.length > 100) {
+        store.packets.splice(
+          0,
+          store.packets.length - 100
+        );
+      }
+
+      notify();
+    };
+
+    // FETCH
+
+    try {
+      if (typeof window.fetch === "function") {
+        store.originals.fetch = window.fetch;
+
+        const originalFetch = window.fetch;
+
+        window.fetch = function(input, init) {
+          try {
+            const url =
+              typeof input === "string"
+                ? input
+                : input?.url;
+
+            const body =
+              init?.body;
+
+            if (
+              BIDMATIC_URL_RE.test(
+                String(url || "")
+              )
+            ) {
+              store.stats.fetch++;
+
+              ingest(
+                url,
+                body,
+                "fetch"
+              );
+            }
+          } catch (_) {}
+
+          return originalFetch.apply(
+            this,
+            arguments
+          );
+        };
+      }
+    } catch (_) {}
+
+    // XHR
+
+    try {
+      const proto =
+        XMLHttpRequest.prototype;
+
+      store.originals.xhrOpen =
+        proto.open;
+
+      store.originals.xhrSend =
+        proto.send;
+
+      proto.open = function(method, url) {
+        try {
+          this.__debugrMethod =
+            method;
+
+          this.__debugrUrl =
+            url;
+        } catch (_) {}
+
+        return store.originals.xhrOpen.apply(
+          this,
+          arguments
+        );
+      };
+
+      proto.send = function(body) {
+        try {
+          if (
+            BIDMATIC_URL_RE.test(
+              String(
+                this.__debugrUrl ||
+                ""
+              )
+            )
+          ) {
+            store.stats.xhr++;
+
+            ingest(
+              this.__debugrUrl,
+              body,
+              "xhr"
+            );
+          }
+        } catch (_) {}
+
+        return store.originals.xhrSend.apply(
+          this,
+          arguments
+        );
+      };
+    } catch (_) {}
+
+    // SEND BEACON
+
+    try {
+      if (
+        navigator &&
+        typeof navigator.sendBeacon ===
+          "function"
+      ) {
+        store.originals.sendBeacon =
+          navigator.sendBeacon.bind(
+            navigator
+          );
+
+        const originalBeacon =
+          navigator.sendBeacon.bind(
+            navigator
+          );
+
+        navigator.sendBeacon =
+          function(url, data) {
+            try {
+              if (
+                BIDMATIC_URL_RE.test(
+                  String(url || "")
+                )
+              ) {
+                store.stats.beacon++;
+
+                ingest(
+                  url,
+                  data,
+                  "beacon"
+                );
+              }
+            } catch (_) {}
+
+            return originalBeacon(
+              url,
+              data
+            );
+          };
+      }
+    } catch (_) {}
+
+    store.ingest = ingest;
+    store.installed = true;
+
+    return store;
+  }
+
+  const captureStore =
+    ensureCaptureStore();
+
+  // Toggle existing UI off.
+  // Capture stays armed.
+
+  const old =
+    document.getElementById(APP_ID);
 
   if (old) {
     old.remove();
 
     const oldHighlight =
-      document.getElementById(HIGHLIGHT_ID);
+      document.getElementById(
+        HIGHLIGHT_ID
+      );
 
     if (oldHighlight) {
       oldHighlight.remove();
@@ -21,14 +315,17 @@
 
   const state = {
     slots: [],
-    selected: 0,
-    showIgnored: false,
     ignored: [],
+    selected: 0,
     timer: null,
     auto: false,
     tcData: null,
     tcDataLoaded: false
   };
+
+  // ---------------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------------
 
   const host =
     document.createElement("div");
@@ -63,7 +360,7 @@
 
         width:
           min(
-            640px,
+            700px,
             calc(100vw - 24px)
           );
 
@@ -88,7 +385,7 @@
         color: #edf3fb;
 
         background:
-          rgba(15, 21, 30, 0.78);
+          rgba(15,21,30,.72);
 
         border:
           1px solid
@@ -98,30 +395,29 @@
 
         box-shadow:
           0 18px 60px
-          rgba(0,0,0,.50);
+          rgba(0,0,0,.45);
 
         backdrop-filter:
-          blur(7px);
+          blur(5px);
 
         -webkit-backdrop-filter:
-          blur(7px);
+          blur(5px);
       }
 
       .header {
         display: flex;
         align-items: center;
-
-        gap: 9px;
+        gap: 8px;
 
         padding:
-          11px 12px;
+          10px 11px;
 
         background:
-          rgba(22,30,41,.82);
+          rgba(22,30,41,.76);
 
         border-bottom:
           1px solid
-          rgba(90,110,135,.45);
+          rgba(90,110,135,.4);
       }
 
       .title {
@@ -129,25 +425,26 @@
         font-weight: 800;
       }
 
+      .spacer {
+        flex: 1;
+      }
+
       .pill {
         border:
           1px solid
-          rgba(100,125,155,.65);
+          rgba(100,125,155,.6);
 
         border-radius: 999px;
 
-        padding: 2px 7px;
+        padding:
+          2px 7px;
 
         font-size: 11px;
 
         color: #c1ccda;
 
         background:
-          rgba(10,15,22,.35);
-      }
-
-      .spacer {
-        flex: 1;
+          rgba(10,15,22,.3);
       }
 
       button,
@@ -161,11 +458,11 @@
         color: #edf3fb;
 
         background:
-          rgba(28,38,51,.88);
+          rgba(28,38,51,.86);
 
         border:
           1px solid
-          rgba(90,110,140,.72);
+          rgba(90,110,140,.7);
 
         border-radius: 8px;
 
@@ -215,11 +512,11 @@
           9px 10px;
 
         background:
-          rgba(17,25,35,.76);
+          rgba(17,25,35,.70);
 
         border-bottom:
           1px solid
-          rgba(90,110,135,.40);
+          rgba(90,110,135,.35);
       }
 
       select {
@@ -232,11 +529,11 @@
         color: #edf3fb;
 
         background:
-          rgba(8,14,21,.82);
+          rgba(8,14,21,.80);
 
         border:
           1px solid
-          rgba(85,105,135,.72);
+          rgba(85,105,135,.7);
 
         border-radius: 8px;
       }
@@ -247,23 +544,49 @@
         gap: 7px;
 
         padding:
-          0 10px 9px 10px;
+          0 10px 9px;
 
         background:
-          rgba(17,25,35,.76);
+          rgba(17,25,35,.70);
 
         border-bottom:
           1px solid
-          rgba(90,110,135,.40);
+          rgba(90,110,135,.35);
 
         flex-wrap: wrap;
+      }
+
+      .capture-status {
+        padding:
+          7px 10px;
+
+        background:
+          rgba(9,15,22,.58);
+
+        border-bottom:
+          1px solid
+          rgba(90,110,135,.28);
+
+        font-size: 11px;
+
+        color: #aab8c8;
+      }
+
+      .capture-ok {
+        color: #63e6a1;
+        font-weight: 750;
+      }
+
+      .capture-wait {
+        color: #ffd06b;
+        font-weight: 750;
       }
 
       .body {
         overflow: auto;
 
         max-height:
-          calc(100vh - 162px);
+          calc(100vh - 193px);
 
         padding: 10px;
       }
@@ -274,11 +597,11 @@
         overflow: hidden;
 
         background:
-          rgba(17,25,35,.73);
+          rgba(17,25,35,.66);
 
         border:
           1px solid
-          rgba(80,100,125,.48);
+          rgba(80,100,125,.45);
 
         border-radius: 10px;
       }
@@ -298,18 +621,18 @@
         color: #b5c1d0;
 
         background:
-          rgba(24,33,45,.85);
+          rgba(24,33,45,.80);
 
         border-bottom:
           1px solid
-          rgba(80,100,125,.45);
+          rgba(80,100,125,.4);
       }
 
       .grid {
         display: grid;
 
         grid-template-columns:
-          158px
+          165px
           minmax(0,1fr);
       }
 
@@ -320,7 +643,7 @@
 
         border-bottom:
           1px solid
-          rgba(65,80,100,.38);
+          rgba(65,80,100,.32);
       }
 
       .k {
@@ -374,39 +697,23 @@
         padding:
           2px 6px;
 
-        margin-left:
-          5px;
+        margin-left: 5px;
 
-        font-size:
-          10px;
-      }
-
-      .link {
-        color: #83b5ff;
-
-        text-decoration:
-          none;
-
-        font-weight: 650;
-      }
-
-      .link:hover {
-        text-decoration:
-          underline;
+        font-size: 10px;
       }
 
       .id-link {
         color: #eef4fb;
 
-        text-decoration:
-          none;
+        text-decoration: none;
 
         border-bottom:
           1px dotted
           rgba(131,181,255,.7);
       }
 
-      .id-link:hover {
+      .id-link:hover,
+      .open-link:hover {
         color: #83b5ff;
       }
 
@@ -417,16 +724,9 @@
 
         color: #83b5ff;
 
-        text-decoration:
-          none;
+        text-decoration: none;
 
-        font-size:
-          11px;
-      }
-
-      .open-link:hover {
-        text-decoration:
-          underline;
+        font-size: 11px;
       }
 
       .bidtable {
@@ -441,15 +741,12 @@
         padding:
           7px 8px;
 
-        text-align:
-          left;
-
-        vertical-align:
-          top;
+        text-align: left;
+        vertical-align: top;
 
         border-bottom:
           1px solid
-          rgba(65,80,100,.38);
+          rgba(65,80,100,.32);
       }
 
       .bidtable th {
@@ -465,7 +762,12 @@
 
       .winner-row {
         background:
-          rgba(53,201,175,.10);
+          rgba(53,201,175,.11);
+      }
+
+      .timeout-row {
+        background:
+          rgba(255,127,135,.06);
       }
 
       .empty {
@@ -478,7 +780,7 @@
 
       details {
         background:
-          rgba(8,14,21,.48);
+          rgba(8,14,21,.42);
       }
 
       summary {
@@ -487,14 +789,12 @@
         padding:
           9px 10px;
 
-        font-weight:
-          700;
+        font-weight: 700;
 
-        color:
-          #b6c1cf;
+        color: #b6c1cf;
 
         background:
-          rgba(24,33,45,.75);
+          rgba(24,33,45,.7);
       }
 
       pre {
@@ -525,36 +825,23 @@
         font-size: 11px;
       }
 
-      .ignored {
-        padding:
-          8px 10px;
-
-        color:
-          #8f9bad;
-
-        font-size:
-          11px;
-      }
-
       .footer {
         padding:
           7px 10px;
 
         border-top:
           1px solid
-          rgba(90,110,135,.40);
+          rgba(90,110,135,.35);
 
-        color:
-          #91a0b2;
+        color: #91a0b2;
 
-        font-size:
-          11px;
+        font-size: 11px;
 
         background:
-          rgba(17,25,35,.78);
+          rgba(17,25,35,.72);
       }
 
-      @media (max-width: 650px) {
+      @media(max-width:650px) {
         .panel {
           top: 5px;
           right: 5px;
@@ -574,7 +861,11 @@
 
         .body {
           max-height:
-            calc(100vh - 170px);
+            calc(100vh - 205px);
+        }
+
+        .bidtable {
+          font-size: 11px;
         }
       }
     </style>
@@ -636,15 +927,16 @@
           Copy JSON
         </button>
 
-        <button id="ignoredBtn">
-          Ignored: 0
-        </button>
-
         <button id="consoleBtn">
           Publisher Console
         </button>
 
       </div>
+
+      <div
+        class="capture-status"
+        id="captureStatus"
+      ></div>
 
       <div
         class="body"
@@ -673,14 +965,30 @@
   const select =
     $("#slotSelect");
 
+  // ---------------------------------------------------------------------------
+  // Generic helpers
+  // ---------------------------------------------------------------------------
+
   function esc(value) {
     return String(
       value ?? ""
     )
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      );
   }
 
   function stringify(value) {
@@ -696,6 +1004,13 @@
   }
 
   function safeNumber(value) {
+    if (
+      value === "" ||
+      value == null
+    ) {
+      return null;
+    }
+
     const n =
       Number(value);
 
@@ -704,39 +1019,48 @@
       : null;
   }
 
-  function money(
+  function formatNumber(
     value,
-    currency = "USD"
+    max = 6
   ) {
     const n =
       safeNumber(value);
 
-    if (n === null) {
+    if (n == null) {
       return "—";
     }
 
-    let out;
+    return n
+      .toFixed(max)
+      .replace(
+        /0+$/,
+        ""
+      )
+      .replace(
+        /\.$/,
+        ""
+      );
+  }
 
-    if (n >= 1) {
-      out =
-        n.toFixed(2);
-    } else if (n >= 0.01) {
-      out =
-        n
-          .toFixed(3)
-          .replace(/0+$/, "")
-          .replace(/\.$/, "");
-    } else {
-      out =
-        n
-          .toFixed(4)
-          .replace(/0+$/, "")
-          .replace(/\.$/, "");
+  function money(
+    value,
+    currency = ""
+  ) {
+    const n =
+      safeNumber(value);
+
+    if (n == null) {
+      return "—";
     }
 
+    const max =
+      Math.abs(n) < 0.1
+        ? 6
+        : 4;
+
     return (
-      `${out} ${currency || ""}`
-        .trim()
+      `${formatNumber(n, max)}` +
+      `${currency ? " " + currency : ""}`
     );
   }
 
@@ -781,8 +1105,7 @@
 
   function copyButton(value) {
     if (
-      value === undefined ||
-      value === null ||
+      value == null ||
       value === ""
     ) {
       return "";
@@ -809,33 +1132,28 @@
     } catch (_) {}
 
     try {
-      const textarea =
+      const ta =
         document.createElement(
           "textarea"
         );
 
-      textarea.value =
+      ta.value =
         text;
 
-      textarea.style.position =
-        "fixed";
-
-      textarea.style.left =
-        "-9999px";
+      ta.style.cssText =
+        "position:fixed;left:-9999px;top:0";
 
       document.body
-        .appendChild(
-          textarea
-        );
+        .appendChild(ta);
 
-      textarea.select();
+      ta.select();
 
       const ok =
         document.execCommand(
           "copy"
         );
 
-      textarea.remove();
+      ta.remove();
 
       return ok;
     } catch (_) {
@@ -845,35 +1163,35 @@
 
   function getGoogletag() {
     try {
-      if (
+      return (
         window.googletag &&
         window.googletag.apiReady
-      ) {
-        return window.googletag;
-      }
-    } catch (_) {}
-
-    return null;
+          ? window.googletag
+          : null
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   function getPbjs() {
     try {
-      if (
+      return (
         window.pbjs &&
         typeof window.pbjs ===
           "object"
-      ) {
-        return window.pbjs;
-      }
-    } catch (_) {}
-
-    return null;
+          ? window.pbjs
+          : null
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   function getNetworkCode(
     adUnitPath
   ) {
-    const match =
+    const m =
       String(
         adUnitPath ||
         ""
@@ -881,10 +1199,32 @@
         /^\/(\d+)\//
       );
 
-    return match
-      ? match[1]
+    return m
+      ? m[1]
       : "";
   }
+
+  function firstTarget(
+    targeting,
+    key
+  ) {
+    const value =
+      targeting?.[key];
+
+    return Array.isArray(value)
+      ? (
+          value[0] ??
+          ""
+        )
+      : (
+          value ??
+          ""
+        );
+  }
+
+  // ---------------------------------------------------------------------------
+  // GPT helpers
+  // ---------------------------------------------------------------------------
 
   function getSlotDivId(slot) {
     try {
@@ -912,7 +1252,7 @@
     try {
       const sizes =
         typeof slot.getSizes ===
-        "function"
+          "function"
           ? slot.getSizes()
           : [];
 
@@ -939,9 +1279,7 @@
             );
           }
 
-          return String(
-            size
-          );
+          return String(size);
         }
       );
     } catch (_) {
@@ -955,30 +1293,30 @@
     try {
       const keys =
         typeof slot.getTargetingKeys ===
-        "function"
+          "function"
           ? slot.getTargetingKeys()
           : [];
 
-      keys.forEach(
-        key => {
-          try {
-            out[key] =
-              slot.getTargeting(
-                key
-              );
-          } catch (_) {}
-        }
-      );
+      for (
+        const key of keys
+      ) {
+        try {
+          out[key] =
+            slot.getTargeting(
+              key
+            );
+        } catch (_) {}
+      }
     } catch (_) {}
 
     return out;
   }
 
   function getPageTargeting() {
+    const out = {};
+
     const gt =
       getGoogletag();
-
-    const out = {};
 
     if (!gt) {
       return out;
@@ -990,20 +1328,20 @@
 
       const keys =
         typeof pubads.getTargetingKeys ===
-        "function"
+          "function"
           ? pubads.getTargetingKeys()
           : [];
 
-      keys.forEach(
-        key => {
-          try {
-            out[key] =
-              pubads.getTargeting(
-                key
-              );
-          } catch (_) {}
-        }
-      );
+      for (
+        const key of keys
+      ) {
+        try {
+          out[key] =
+            pubads.getTargeting(
+              key
+            );
+        } catch (_) {}
+      }
     } catch (_) {}
 
     return out;
@@ -1011,42 +1349,23 @@
 
   function getResponseInfo(slot) {
     try {
-      if (
+      return (
         typeof slot.getResponseInformation ===
-        "function"
-      ) {
-        return (
-          slot.getResponseInformation() ||
-          null
-        );
-      }
-    } catch (_) {}
-
-    return null;
-  }
-
-  function firstTarget(
-    targeting,
-    key
-  ) {
-    const value =
-      targeting &&
-      targeting[key];
-
-    if (
-      Array.isArray(value)
-    ) {
-      return value.length
-        ? value[0]
-        : "";
+          "function"
+          ? (
+              slot.getResponseInformation() ||
+              null
+            )
+          : null
+      );
+    } catch (_) {
+      return null;
     }
-
-    return value ?? "";
   }
 
   function isOutOfPage(
     slot,
-    adUnitPath,
+    path,
     divId
   ) {
     try {
@@ -1059,15 +1378,54 @@
       }
     } catch (_) {}
 
-    const text =
-      `${adUnitPath || ""} ${divId || ""}`
-        .toLowerCase();
-
     return (
-      /\b(interstitial|anchor|rewarded|out[-_ ]?of[-_ ]?page|oop)\b/
-        .test(text)
+      /\b(interstitial|anchor|rewarded|out[-_ ]?of[-_ ]?page|oop)\b/i
+        .test(
+          `${path || ""} ${divId || ""}`
+        )
     );
   }
+
+  function getIdsFromResponse(
+    response
+  ) {
+    return {
+      lineItemId:
+        response?.lineItemId ??
+        null,
+
+      creativeId:
+        response?.creativeId ??
+        null,
+
+      advertiserId:
+        response?.advertiserId ??
+        null,
+
+      orderId:
+        response?.campaignId ??
+        null,
+
+      sourceAgnosticLineItemId:
+        response?.sourceAgnosticLineItemId ??
+        null,
+
+      sourceAgnosticCreativeId:
+        response?.sourceAgnosticCreativeId ??
+        null,
+
+      creativeTemplateId:
+        response?.creativeTemplateId ??
+        null,
+
+      queryId:
+        ""
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // GAM request matching
+  // ---------------------------------------------------------------------------
 
   function parseNestedParams(raw) {
     const out = {};
@@ -1102,57 +1460,56 @@
       }
     }
 
-    decoded
-      .replace(/^\?/, "")
-      .split("&")
-      .forEach(
-        part => {
-          if (!part) {
-            return;
-          }
+    for (
+      const part of
+      decoded
+        .replace(
+          /^\?/,
+          ""
+        )
+        .split("&")
+    ) {
+      if (!part) {
+        continue;
+      }
 
-          const eq =
-            part.indexOf("=");
+      const idx =
+        part.indexOf("=");
 
-          let key;
-          let value;
+      let key =
+        idx === -1
+          ? part
+          : part.slice(
+              0,
+              idx
+            );
 
-          if (eq === -1) {
-            key = part;
-            value = "";
-          } else {
-            key =
-              part.slice(
-                0,
-                eq
-              );
+      let val =
+        idx === -1
+          ? ""
+          : part.slice(
+              idx + 1
+            );
 
-            value =
-              part.slice(
-                eq + 1
-              );
-          }
+      try {
+        key =
+          decodeURIComponent(
+            key
+          );
+      } catch (_) {}
 
-          try {
-            key =
-              decodeURIComponent(
-                key
-              );
-          } catch (_) {}
+      try {
+        val =
+          decodeURIComponent(
+            val
+          );
+      } catch (_) {}
 
-          try {
-            value =
-              decodeURIComponent(
-                value
-              );
-          } catch (_) {}
-
-          if (key) {
-            out[key] =
-              value;
-          }
-        }
-      );
+      if (key) {
+        out[key] =
+          val;
+      }
+    }
 
     return out;
   }
@@ -1191,8 +1548,13 @@
 
   function isGamRequestUrl(url) {
     return (
-      /gampad\/ads|pagead\/ads/i
-        .test(url)
+      /\/gampad\/ads|\/pagead\/ads/i
+        .test(
+          String(
+            url ||
+            ""
+          )
+        )
     );
   }
 
@@ -1210,7 +1572,10 @@
 
       parsed.searchParams
         .forEach(
-          (value, key) => {
+          (
+            value,
+            key
+          ) => {
             out.params[key] =
               value;
           }
@@ -1236,7 +1601,7 @@
     parsed
   ) {
     const p =
-      parsed.params ||
+      parsed?.params ||
       {};
 
     if (p.iu) {
@@ -1275,11 +1640,11 @@
     slotData
   ) {
     const p =
-      parsed.params ||
+      parsed?.params ||
       {};
 
     const prev =
-      parsed.prevScp ||
+      parsed?.prevScp ||
       {};
 
     const divId =
@@ -1297,9 +1662,13 @@
     if (
       divId &&
       p.dids &&
-      String(p.dids)
+      String(
+        p.dids
+      )
         .split(",")
-        .includes(divId)
+        .includes(
+          divId
+        )
     ) {
       return {
         matched: true,
@@ -1322,15 +1691,15 @@
       };
     }
 
-    const requestPath =
+    const reqPath =
       getRequestAdUnitPath(
         parsed
       );
 
     if (
-      requestPath &&
+      reqPath &&
       path &&
-      requestPath ===
+      reqPath ===
         path
     ) {
       return {
@@ -1342,14 +1711,14 @@
     }
 
     if (
-      requestPath &&
+      reqPath &&
       path &&
       (
-        requestPath.endsWith(
+        reqPath.endsWith(
           path
         ) ||
         path.endsWith(
-          requestPath
+          reqPath
         )
       )
     ) {
@@ -1373,74 +1742,67 @@
   ) {
     return getPerformanceResources()
       .filter(
-        resource =>
+        r =>
           isGamRequestUrl(
-            resource.url
+            r.url
           )
       )
       .map(
-        resource => {
+        r => {
           const parsed =
             parseGamRequest(
-              resource.url
-            );
-
-          const match =
-            requestMatchesSlot(
-              parsed,
-              slotData
+              r.url
             );
 
           return {
-            ...resource,
+            ...r,
+
             parsed,
-            match
+
+            match:
+              requestMatchesSlot(
+                parsed,
+                slotData
+              )
           };
         }
       )
       .filter(
-        item =>
-          item.match.matched
+        r =>
+          r.match.matched
       )
       .sort(
-        (a, b) => {
-          if (
-            b.match.score !==
-            a.match.score
-          ) {
-            return (
-              b.match.score -
-              a.match.score
-            );
-          }
-
-          return (
-            b.startTime -
+        (
+          a,
+          b
+        ) =>
+          b.match.score -
+            a.match.score ||
+          b.startTime -
             a.startTime
-          );
-        }
       );
   }
 
   function getBestGamRequest(
     slotData
   ) {
-    const requests =
+    return (
       findGamRequests(
         slotData
-      );
-
-    return requests.length
-      ? requests[0]
-      : null;
+      )[0] ||
+      null
+    );
   }
+
+  // ---------------------------------------------------------------------------
+  // Header bidding targeting + Prebid fallback
+  // ---------------------------------------------------------------------------
 
   function getHbFromRequest(
     request
   ) {
     if (
-      !request ||
-      !request.parsed
+      !request?.parsed
     ) {
       return null;
     }
@@ -1533,12 +1895,13 @@
     };
 
     data.detected =
-      Object.values(data)
+      Object
+        .values(data)
         .some(
-          value =>
-            value !== "" &&
-            value !== false &&
-            value !== null
+          v =>
+            v !== "" &&
+            v != null &&
+            v !== false
         );
 
     return data.detected
@@ -1546,50 +1909,72 @@
       : null;
   }
 
+  function getHbTargeting(
+    targeting
+  ) {
+    const out = {};
+
+    for (
+      const key of
+      Object.keys(
+        targeting ||
+        {}
+      )
+    ) {
+      if (
+        /^hb_/i.test(key) ||
+        /^is_vmhbmp$/i
+          .test(key)
+      ) {
+        out[key] =
+          targeting[key];
+      }
+    }
+
+    return out;
+  }
+
   function getHbWrapperEvidence(
     slotData
   ) {
     const evidence = [];
-
-    const page =
-      slotData.pageTargeting ||
-      {};
-
-    const slot =
-      slotData.targeting ||
-      {};
 
     const inspect =
       (
         obj,
         source
       ) => {
-        Object.keys(obj)
-          .forEach(
-            key => {
-              if (
-                /^hb/i.test(key) ||
-                /header.?bid/i
-                  .test(key)
-              ) {
-                evidence.push({
-                  source,
-                  key,
-                  value:
-                    obj[key]
-                });
-              }
-            }
-          );
+        for (
+          const key of
+          Object.keys(
+            obj ||
+            {}
+          )
+        ) {
+          if (
+            /^hb/i.test(key) ||
+            /header.?bid/i
+              .test(key) ||
+            /^is_vmhbmp$/i
+              .test(key)
+          ) {
+            evidence.push({
+              source,
+              key,
+              value:
+                obj[key]
+            });
+          }
+        }
       };
 
     inspect(
-      page,
+      slotData.pageTargeting,
       "pageTargeting"
     );
 
     inspect(
-      slot,
+      slotData.targeting,
       "slotTargeting"
     );
 
@@ -1623,217 +2008,91 @@
       });
     }
 
+    if (
+      slotData.bidmaticBids?.length
+    ) {
+      evidence.push({
+        source:
+          "Bidmatic multitracking",
+
+        key:
+          "capturedBids",
+
+        value:
+          slotData.bidmaticBids
+            .length
+      });
+    }
+
     return evidence;
   }
 
-  function normalizePbResponseObject(
-    raw
+  function getPbjsBidsForSlot(
+    slotData
   ) {
-    const bids = [];
-
-    if (!raw) {
-      return bids;
-    }
-
-    if (
-      Array.isArray(raw)
-    ) {
-      raw.forEach(
-        item => {
-          if (
-            item &&
-            typeof item ===
-              "object"
-          ) {
-            bids.push(item);
-          }
-        }
-      );
-
-      return bids;
-    }
-
-    if (
-      Array.isArray(
-        raw.bids
-      )
-    ) {
-      raw.bids.forEach(
-        item => {
-          if (
-            item &&
-            typeof item ===
-              "object"
-          ) {
-            bids.push(item);
-          }
-        }
-      );
-    }
-
-    return bids;
-  }
-
-  function getPbjsBids() {
     const pbjs =
       getPbjs();
 
-    const bids = [];
-
-    if (!pbjs) {
-      return bids;
+    if (
+      !pbjs ||
+      typeof pbjs.getBidResponses !==
+        "function"
+    ) {
+      return [];
     }
+
+    const out = [];
 
     try {
-      if (
-        typeof pbjs.getBidResponses ===
-        "function"
-      ) {
-        const responses =
-          pbjs.getBidResponses() ||
-          {};
+      const responses =
+        pbjs.getBidResponses() ||
+        {};
 
-        Object.keys(
+      for (
+        const [
+          adUnitCode,
+          group
+        ] of
+        Object.entries(
           responses
-        ).forEach(
-          adUnitCode => {
-            normalizePbResponseObject(
-              responses[
-                adUnitCode
-              ]
-            ).forEach(
-              bid => {
-                bids.push({
-                  ...bid,
+        )
+      ) {
+        const bids =
+          Array.isArray(
+            group?.bids
+          )
+            ? group.bids
+            : [];
 
-                  __source:
-                    "pbjs",
+        const match =
+          adUnitCode ===
+            slotData.divId ||
+          adUnitCode ===
+            slotData.adUnitPath;
 
-                  __adUnitCode:
-                    bid.adUnitCode ||
-                    adUnitCode
-                });
-              }
-            );
-          }
-        );
-      }
-    } catch (_) {}
+        if (!match) {
+          continue;
+        }
 
-    return bids;
-  }
-
-  function bidMatchesSlot(
-    bid,
-    slotData
-  ) {
-    if (!bid) {
-      return false;
-    }
-
-    const code =
-      String(
-        bid.adUnitCode ||
-        bid.__adUnitCode ||
-        bid.divId ||
-        bid.slotId ||
-        ""
-      );
-
-    const div =
-      String(
-        slotData.divId ||
-        ""
-      );
-
-    const path =
-      String(
-        slotData.adUnitPath ||
-        ""
-      );
-
-    if (
-      code &&
-      div &&
-      code === div
-    ) {
-      return true;
-    }
-
-    if (
-      code &&
-      path &&
-      code === path
-    ) {
-      return true;
-    }
-
-    if (
-      code &&
-      div &&
-      (
-        code.endsWith(div) ||
-        div.endsWith(code)
-      )
-    ) {
-      return true;
-    }
-
-    const bidAdId =
-      String(
-        bid.adId ||
-        bid.bidId ||
-        ""
-      );
-
-    const hbAdId =
-      String(
-        (
-          slotData.hbRequest &&
-          slotData.hbRequest.adId
-        ) ||
-        firstTarget(
-          slotData.targeting,
-          "hb_adid"
-        ) ||
-        ""
-      );
-
-    if (
-      bidAdId &&
-      hbAdId &&
-      bidAdId === hbAdId
-    ) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function collectHbBids(
-    slotData
-  ) {
-    const bids = [];
-
-    getPbjsBids()
-      .forEach(
-        bid => {
-          if (
-            !bidMatchesSlot(
-              bid,
-              slotData
-            )
-          ) {
-            return;
-          }
-
-          bids.push({
+        for (
+          const bid of bids
+        ) {
+          out.push({
             bidder:
               bid.bidder ||
               bid.bidderCode ||
               "Unknown",
 
-            cpm:
+            originalBid:
+              safeNumber(
+                bid.cpm
+              ),
+
+            originalCurrency:
+              bid.currency ||
+              "USD",
+
+            bid:
               safeNumber(
                 bid.cpm
               ),
@@ -1842,205 +2101,585 @@
               bid.currency ||
               "USD",
 
-            bucket:
+            pubBid:
+              null,
+
+            grossBid:
+              null,
+
+            netBid:
+              null,
+
+            gamBucket:
               bid.adserverTargeting
-                ? (
-                    bid.adserverTargeting
-                      .hb_pb ||
-                    ""
-                  )
-                : "",
+                ?.hb_pb ||
+              "",
+
+            hbAdId:
+              bid.adId ||
+              "",
+
+            creativeId:
+              bid.creativeId ||
+              "",
 
             size:
               bid.size ||
               (
                 bid.width &&
                 bid.height
-                  ? `${bid.width}x${bid.height}`
+                  ? (
+                      `${bid.width}` +
+                      "x" +
+                      `${bid.height}`
+                    )
                   : ""
               ),
 
-            adId:
-              bid.adId ||
-              "",
+            winner:
+              false,
 
-            responseTime:
+            timeout:
+              false,
+
+            tte:
               safeNumber(
                 bid.timeToRespond
               ),
-
-            status:
-              bid.statusMessage ||
-              bid.status ||
-              "",
 
             source:
               "Prebid runtime"
           });
         }
-      );
-
-    const targeting =
-      slotData.targeting ||
-      {};
-
-    const targetBidder =
-      firstTarget(
-        targeting,
-        "hb_bidder"
-      );
-
-    const targetBucket =
-      firstTarget(
-        targeting,
-        "hb_pb"
-      );
-
-    const targetAdId =
-      firstTarget(
-        targeting,
-        "hb_adid"
-      );
-
-    const targetSize =
-      firstTarget(
-        targeting,
-        "hb_size"
-      );
-
-    if (
-      targetBidder
-    ) {
-      const exists =
-        bids.some(
-          bid =>
-            bid.bidder ===
-            targetBidder
-        );
-
-      if (!exists) {
-        bids.push({
-          bidder:
-            targetBidder,
-
-          cpm:
-            null,
-
-          currency:
-            "USD",
-
-          bucket:
-            targetBucket ||
-            "",
-
-          size:
-            targetSize ||
-            "",
-
-          adId:
-            targetAdId ||
-            "",
-
-          responseTime:
-            null,
-
-          status:
-            "Slot targeting",
-
-          source:
-            "GPT targeting"
-        });
       }
-    }
-
-    if (
-      slotData.hbRequest &&
-      slotData.hbRequest.bidder
-    ) {
-      const hr =
-        slotData.hbRequest;
-
-      const exists =
-        bids.some(
-          bid =>
-            bid.bidder ===
-            hr.bidder &&
-            bid.bucket ===
-            hr.bucket
-        );
-
-      if (!exists) {
-        bids.push({
-          bidder:
-            hr.bidder,
-
-          cpm:
-            null,
-
-          currency:
-            "USD",
-
-          bucket:
-            hr.bucket || "",
-
-          size:
-            hr.size || "",
-
-          adId:
-            hr.adId || "",
-
-          responseTime:
-            null,
-
-          status:
-            "Sent to GAM",
-
-          source:
-            "GAM request"
-        });
-      }
-    }
-
-    return bids.sort(
-      (a, b) =>
-        (
-          b.cpm ??
-          safeNumber(
-            b.bucket
-          ) ??
-          -1
-        ) -
-        (
-          a.cpm ??
-          safeNumber(
-            a.bucket
-          ) ??
-          -1
-        )
-    );
-  }
-
-  function getHbTargeting(
-    targeting
-  ) {
-    const out = {};
-
-    Object.keys(
-      targeting ||
-      {}
-    ).forEach(
-      key => {
-        if (
-          /^hb_/i.test(key)
-        ) {
-          out[key] =
-            targeting[key];
-        }
-      }
-    );
+    } catch (_) {}
 
     return out;
   }
+
+  // ---------------------------------------------------------------------------
+  // Bidmatic multitracking parser
+  // ---------------------------------------------------------------------------
+
+  function buildBidmaticRegistry() {
+    const byHbAdId =
+      new Map();
+
+    const byId =
+      new Map();
+
+    for (
+      const packet of
+      captureStore.packets
+    ) {
+      const events =
+        Array.isArray(
+          packet.json?.events
+        )
+          ? packet.json.events
+          : [];
+
+      for (
+        const event of events
+      ) {
+        const adUnitCode =
+          event?.adUnitCode ||
+          "";
+
+        const bidders =
+          Array.isArray(
+            event?.bidders
+          )
+            ? event.bidders
+            : [];
+
+        for (
+          const bidder of bidders
+        ) {
+          const name =
+            bidder?.bidName ||
+            "";
+
+          if (
+            bidder?.hbAdId &&
+            name
+          ) {
+            byHbAdId.set(
+              `${adUnitCode}|${bidder.hbAdId}`,
+              name
+            );
+          }
+
+          if (
+            bidder?.id != null &&
+            name
+          ) {
+            byId.set(
+              `${adUnitCode}|${bidder.id}`,
+              name
+            );
+          }
+        }
+      }
+    }
+
+    return {
+      byHbAdId,
+      byId
+    };
+  }
+
+  function getBidmaticBidsForSlot(
+    adUnitPath
+  ) {
+    const path =
+      String(
+        adUnitPath ||
+        ""
+      );
+
+    if (!path) {
+      return [];
+    }
+
+    const registry =
+      buildBidmaticRegistry();
+
+    const groups =
+      new Map();
+
+    let packetCurrency =
+      "";
+
+    for (
+      const packet of
+      captureStore.packets
+    ) {
+      const json =
+        packet.json;
+
+      if (
+        !json ||
+        !Array.isArray(
+          json.events
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        json.cur
+      ) {
+        packetCurrency =
+          json.cur;
+      }
+
+      for (
+        const event of
+        json.events
+      ) {
+        if (
+          event?.adUnitCode !==
+          path
+        ) {
+          continue;
+        }
+
+        const bidders =
+          Array.isArray(
+            event?.bidders
+          )
+            ? event.bidders
+            : [];
+
+        for (
+          const raw of bidders
+        ) {
+          const hbAdId =
+            raw?.hbAdId ||
+            "";
+
+          const id =
+            raw?.id ??
+            "";
+
+          const name =
+            raw?.bidName ||
+            (
+              hbAdId
+                ? registry.byHbAdId
+                    .get(
+                      `${path}|${hbAdId}`
+                    )
+                : ""
+            ) ||
+            (
+              id !== ""
+                ? registry.byId
+                    .get(
+                      `${path}|${id}`
+                    )
+                : ""
+            ) ||
+            (
+              id !== ""
+                ? `bidder_${id}`
+                : "Unknown"
+            );
+
+          const key =
+            hbAdId ||
+            `${id}|${name}`;
+
+          const current =
+            groups.get(key) ||
+            {
+              bidder:
+                name,
+
+              bidderId:
+                id,
+
+              hbAdId,
+
+              overrideId:
+                raw?.overrideId ??
+                null,
+
+              originalBid:
+                null,
+
+              originalCurrency:
+                "",
+
+              bid:
+                null,
+
+              pubBid:
+                null,
+
+              grossBid:
+                null,
+
+              netBid:
+                null,
+
+              currency:
+                packetCurrency ||
+                "",
+
+              winner:
+                false,
+
+              timeout:
+                false,
+
+              tte:
+                null,
+
+              bidFloored:
+                null,
+
+              bidCeiled:
+                null,
+
+              creativeId:
+                "",
+
+              sizes:
+                [],
+
+              source:
+                "Bidmatic multitracking",
+
+              eventTypes:
+                []
+            };
+
+          if (
+            raw?.bidName
+          ) {
+            current.bidder =
+              raw.bidName;
+          }
+
+          if (
+            raw?.id != null
+          ) {
+            current.bidderId =
+              raw.id;
+          }
+
+          if (
+            raw?.hbAdId
+          ) {
+            current.hbAdId =
+              raw.hbAdId;
+          }
+
+          if (
+            raw?.overrideId != null
+          ) {
+            current.overrideId =
+              raw.overrideId;
+          }
+
+          if (
+            safeNumber(
+              raw?.originalBid
+            ) != null
+          ) {
+            current.originalBid =
+              safeNumber(
+                raw.originalBid
+              );
+          }
+
+          if (
+            raw?.originalCurrency
+          ) {
+            current.originalCurrency =
+              raw.originalCurrency;
+          }
+
+          if (
+            safeNumber(
+              raw?.bid
+            ) != null
+          ) {
+            current.bid =
+              safeNumber(
+                raw.bid
+              );
+          }
+
+          if (
+            safeNumber(
+              raw?.pubBid
+            ) != null
+          ) {
+            current.pubBid =
+              safeNumber(
+                raw.pubBid
+              );
+          }
+
+          if (
+            safeNumber(
+              raw?.grossBid
+            ) != null
+          ) {
+            current.grossBid =
+              safeNumber(
+                raw.grossBid
+              );
+          }
+
+          if (
+            safeNumber(
+              raw?.netBid
+            ) != null
+          ) {
+            current.netBid =
+              safeNumber(
+                raw.netBid
+              );
+          }
+
+          if (
+            raw?.currency
+          ) {
+            current.currency =
+              raw.currency;
+          }
+
+          if (
+            raw?.winner === true
+          ) {
+            current.winner =
+              true;
+          }
+
+          if (
+            raw?.timeout === true
+          ) {
+            current.timeout =
+              true;
+          }
+
+          if (
+            safeNumber(
+              raw?.tte
+            ) != null
+          ) {
+            current.tte =
+              safeNumber(
+                raw.tte
+              );
+          }
+
+          if (
+            typeof raw?.bidFloored ===
+            "boolean"
+          ) {
+            current.bidFloored =
+              raw.bidFloored;
+          }
+
+          if (
+            typeof raw?.bidCeiled ===
+            "boolean"
+          ) {
+            current.bidCeiled =
+              raw.bidCeiled;
+          }
+
+          if (
+            raw?.creativeId
+          ) {
+            current.creativeId =
+              raw.creativeId;
+          }
+
+          if (
+            Array.isArray(
+              raw?.sizes
+            ) &&
+            raw.sizes.length
+          ) {
+            current.sizes =
+              raw.sizes;
+          }
+
+          if (
+            event?.event != null &&
+            !current.eventTypes
+              .includes(
+                event.event
+              )
+          ) {
+            current.eventTypes
+              .push(
+                event.event
+              );
+          }
+
+          groups.set(
+            key,
+            current
+          );
+        }
+      }
+    }
+
+    return Array.from(
+      groups.values()
+    )
+      .filter(
+        b =>
+          b.originalBid != null ||
+          b.bid != null ||
+          b.pubBid != null ||
+          b.timeout ||
+          b.winner
+      )
+      .sort(
+        (
+          a,
+          b
+        ) => {
+          if (
+            a.winner !==
+            b.winner
+          ) {
+            return a.winner
+              ? -1
+              : 1;
+          }
+
+          if (
+            a.timeout !==
+            b.timeout
+          ) {
+            return a.timeout
+              ? 1
+              : -1;
+          }
+
+          return (
+            (
+              b.bid ??
+              b.originalBid ??
+              -1
+            ) -
+            (
+              a.bid ??
+              a.originalBid ??
+              -1
+            )
+          );
+        }
+      );
+  }
+
+  function getBidmaticPacketSummary() {
+    const valid =
+      captureStore.packets
+        .filter(
+          p =>
+            p.json &&
+            Array.isArray(
+              p.json.events
+            )
+        );
+
+    const adUnits =
+      new Set();
+
+    let bidRows =
+      0;
+
+    for (
+      const p of valid
+    ) {
+      for (
+        const e of
+        p.json.events ||
+        []
+      ) {
+        if (
+          e?.adUnitCode
+        ) {
+          adUnits.add(
+            e.adUnitCode
+          );
+        }
+
+        if (
+          Array.isArray(
+            e?.bidders
+          )
+        ) {
+          bidRows +=
+            e.bidders.length;
+        }
+      }
+    }
+
+    return {
+      packets:
+        valid.length,
+
+      adUnits:
+        adUnits.size,
+
+      bidRows
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Privacy
+  // ---------------------------------------------------------------------------
 
   function readTcData() {
     return new Promise(
@@ -2061,25 +2700,25 @@
             return;
           }
 
-          let finished =
+          let done =
             false;
 
-          const timeout =
+          const timer =
             setTimeout(
               () => {
-                if (
-                  !finished
-                ) {
-                  finished =
-                    true;
-
-                  state.tcDataLoaded =
-                    true;
-
-                  resolve(
-                    state.tcData
-                  );
+                if (done) {
+                  return;
                 }
+
+                done =
+                  true;
+
+                state.tcDataLoaded =
+                  true;
+
+                resolve(
+                  state.tcData
+                );
               },
               1000
             );
@@ -2091,17 +2730,15 @@
               tcData,
               success
             ) => {
-              if (
-                finished
-              ) {
+              if (done) {
                 return;
               }
 
-              finished =
+              done =
                 true;
 
               clearTimeout(
-                timeout
+                timer
               );
 
               state.tcDataLoaded =
@@ -2134,34 +2771,54 @@
     request
   ) {
     const result = {
-      gdprApplies: null,
-      consentString: null,
-      cmpPresent: false,
-      cmpId: null,
-      cmpVersion: null,
-      tcfPolicyVersion: null,
-      eventStatus: "",
-      cmpStatus: "",
-      gpp: null,
-      usPrivacy: null,
-      consentValue: "",
-      gppValue: "",
-      gppSid: "",
-      usPrivacyValue: ""
+      gdprApplies:
+        null,
+
+      consentString:
+        null,
+
+      cmpPresent:
+        typeof window.__tcfapi ===
+        "function",
+
+      cmpId:
+        null,
+
+      cmpVersion:
+        null,
+
+      tcfPolicyVersion:
+        null,
+
+      eventStatus:
+        "",
+
+      cmpStatus:
+        "",
+
+      gpp:
+        null,
+
+      usPrivacy:
+        null,
+
+      consentValue:
+        "",
+
+      gppValue:
+        "",
+
+      gppSid:
+        "",
+
+      usPrivacyValue:
+        ""
     };
 
-    try {
-      result.cmpPresent =
-        typeof window.__tcfapi ===
-        "function";
-    } catch (_) {}
+    const tc =
+      state.tcData;
 
-    if (
-      state.tcData
-    ) {
-      const tc =
-        state.tcData;
-
+    if (tc) {
       if (
         typeof tc.gdprApplies ===
         "boolean"
@@ -2200,135 +2857,86 @@
         "";
     }
 
+    const p =
+      request?.parsed
+        ?.params ||
+      {};
+
     if (
-      request &&
-      request.parsed
+      result.gdprApplies ==
+      null
     ) {
-      const p =
-        request.parsed.params ||
-        {};
-
       if (
-        result.gdprApplies ===
-          null
+        p.gdpr === "1"
       ) {
-        if (
-          p.gdpr === "1"
-        ) {
-          result.gdprApplies =
-            true;
-        } else if (
-          p.gdpr === "0"
-        ) {
-          result.gdprApplies =
-            false;
-        }
+        result.gdprApplies =
+          true;
       }
 
       if (
-        result.consentString ===
-          null &&
-        "gdpr_consent" in p
+        p.gdpr === "0"
       ) {
-        result.consentString =
-          Boolean(
-            p.gdpr_consent
-          );
-
-        result.consentValue =
-          p.gdpr_consent ||
-          "";
-      }
-
-      if (
-        p.gpp
-      ) {
-        result.gpp =
-          true;
-
-        result.gppValue =
-          p.gpp;
-      } else if (
-        p.gpp_sid &&
-        p.gpp_sid !== "-1"
-      ) {
-        result.gpp =
-          true;
-      } else if (
-        p.gpp_sid === "-1"
-      ) {
-        result.gpp =
+        result.gdprApplies =
           false;
       }
+    }
 
-      result.gppSid =
-        p.gpp_sid ||
+    if (
+      result.consentString ==
+        null &&
+      "gdpr_consent" in p
+    ) {
+      result.consentString =
+        Boolean(
+          p.gdpr_consent
+        );
+
+      result.consentValue =
+        p.gdpr_consent ||
         "";
+    }
 
-      if (
-        p.us_privacy
-      ) {
-        result.usPrivacy =
-          true;
+    if (p.gpp) {
+      result.gpp =
+        true;
 
-        result.usPrivacyValue =
-          p.us_privacy;
-      }
+      result.gppValue =
+        p.gpp;
+    } else if (
+      p.gpp_sid &&
+      p.gpp_sid !==
+        "-1"
+    ) {
+      result.gpp =
+        true;
+    } else if (
+      p.gpp_sid ===
+      "-1"
+    ) {
+      result.gpp =
+        false;
+    }
+
+    result.gppSid =
+      p.gpp_sid ||
+      "";
+
+    if (
+      p.us_privacy
+    ) {
+      result.usPrivacy =
+        true;
+
+      result.usPrivacyValue =
+        p.us_privacy;
     }
 
     return result;
   }
 
-  function getIdsFromResponse(
-    response
-  ) {
-    return {
-      lineItemId:
-        response &&
-        response.lineItemId !==
-          undefined
-          ? response.lineItemId
-          : null,
-
-      creativeId:
-        response &&
-        response.creativeId !==
-          undefined
-          ? response.creativeId
-          : null,
-
-      advertiserId:
-        response &&
-        response.advertiserId !==
-          undefined
-          ? response.advertiserId
-          : null,
-
-      orderId:
-        response &&
-        response.campaignId !==
-          undefined
-          ? response.campaignId
-          : null,
-
-      sourceAgnosticLineItemId:
-        response &&
-        response.sourceAgnosticLineItemId !==
-          undefined
-          ? response.sourceAgnosticLineItemId
-          : null,
-
-      sourceAgnosticCreativeId:
-        response &&
-        response.sourceAgnosticCreativeId !==
-          undefined
-          ? response.sourceAgnosticCreativeId
-          : null,
-
-      queryId:
-        ""
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // Winner classification
+  // ---------------------------------------------------------------------------
 
   function classifyWinner(
     slotData
@@ -2336,25 +2944,19 @@
     const response =
       slotData.response;
 
-    const ids =
-      slotData.ids;
+    const raw =
+      slotData.ids
+        .lineItemId;
 
-    const rawLineItem =
-      ids.lineItemId;
-
-    const lineItem =
-      rawLineItem === null ||
-      rawLineItem === undefined ||
-      rawLineItem === ""
+    const li =
+      raw == null ||
+      raw === ""
         ? null
-        : Number(
-            rawLineItem
-          );
+        : Number(raw);
 
     if (
-      response &&
-      response.isBackfill ===
-        true
+      response?.isBackfill ===
+      true
     ) {
       return {
         label:
@@ -2372,7 +2974,7 @@
     }
 
     if (
-      lineItem === -1
+      li === -1
     ) {
       return {
         label:
@@ -2390,7 +2992,7 @@
     }
 
     if (
-      lineItem === -2
+      li === -2
     ) {
       return {
         label:
@@ -2408,11 +3010,8 @@
     }
 
     if (
-      lineItem !== null &&
-      Number.isFinite(
-        lineItem
-      ) &&
-      lineItem > 0
+      Number.isFinite(li) &&
+      li > 0
     ) {
       if (
         slotData.hbDetected
@@ -2454,10 +3053,8 @@
           slotData.targeting,
           "hb_bidder"
         ) ||
-        (
-          slotData.hbRequest &&
-          slotData.hbRequest.bidder
-        )
+        slotData.hbRequest
+          ?.bidder
       )
     ) {
       return {
@@ -2490,96 +3087,84 @@
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // GAM links
+  // ---------------------------------------------------------------------------
+
   function buildLineItemUrl(
-    slotData,
-    lineItemId
+    s,
+    id
   ) {
     if (
-      !slotData.networkCode ||
-      !lineItemId ||
-      Number(lineItemId) <= 0
+      !s.networkCode ||
+      !id ||
+      Number(id) <= 0
     ) {
       return "";
     }
 
     return (
-      "https://admanager.google.com/" +
-      encodeURIComponent(
-        slotData.networkCode
-      ) +
-      "#delivery/line_item/detail/line_item_id=" +
-      encodeURIComponent(
-        lineItemId
-      ) +
-      "&line_item=true&li_tab=settings"
+      `https://admanager.google.com/` +
+      `${encodeURIComponent(s.networkCode)}` +
+      `#delivery/line_item/detail/line_item_id=` +
+      `${encodeURIComponent(id)}` +
+      `&line_item=true&li_tab=settings`
     );
   }
 
   function buildAdvertiserUrl(
-    slotData,
-    advertiserId
+    s,
+    id
   ) {
     if (
-      !slotData.networkCode ||
-      !advertiserId
+      !s.networkCode ||
+      !id
     ) {
       return "";
     }
 
     return (
-      "https://admanager.google.com/" +
-      encodeURIComponent(
-        slotData.networkCode
-      ) +
-      "#admin/company/detail/company_id=" +
-      encodeURIComponent(
-        advertiserId
-      )
+      `https://admanager.google.com/` +
+      `${encodeURIComponent(s.networkCode)}` +
+      `#admin/company/detail/company_id=` +
+      `${encodeURIComponent(id)}`
     );
   }
 
   function buildOrderUrl(
-    slotData,
-    orderId
+    s,
+    id
   ) {
     if (
-      !slotData.networkCode ||
-      !orderId
+      !s.networkCode ||
+      !id
     ) {
       return "";
     }
 
     return (
-      "https://admanager.google.com/" +
-      encodeURIComponent(
-        slotData.networkCode
-      ) +
-      "#delivery/order/order_overview/order_id=" +
-      encodeURIComponent(
-        orderId
-      )
+      `https://admanager.google.com/` +
+      `${encodeURIComponent(s.networkCode)}` +
+      `#delivery/order/order_overview/order_id=` +
+      `${encodeURIComponent(id)}`
     );
   }
 
   function buildTroubleshootingUrl(
-    slotData
+    s
   ) {
     if (
-      !slotData.networkCode ||
-      !slotData.ids.queryId
+      !s.networkCode ||
+      !s.ids.queryId
     ) {
       return "";
     }
 
     return (
-      "https://admanager.google.com/" +
-      encodeURIComponent(
-        slotData.networkCode
-      ) +
-      "#troubleshooting/screenshot/query_id=" +
-      encodeURIComponent(
-        slotData.ids.queryId
-      )
+      `https://admanager.google.com/` +
+      `${encodeURIComponent(s.networkCode)}` +
+      `#troubleshooting/screenshot/query_id=` +
+      `${encodeURIComponent(s.ids.queryId)}`
     );
   }
 
@@ -2589,8 +3174,7 @@
     label
   ) {
     if (
-      value === null ||
-      value === undefined ||
+      value == null ||
       value === ""
     ) {
       return `
@@ -2632,469 +3216,9 @@
     `;
   }
 
-  function highlightSelectedSlot() {
-    const slot =
-      state.slots[
-        state.selected
-      ];
-
-    const old =
-      document.getElementById(
-        HIGHLIGHT_ID
-      );
-
-    if (old) {
-      old.remove();
-    }
-
-    if (
-      !slot ||
-      slot.oop ||
-      !slot.element
-    ) {
-      $("#footer")
-        .textContent =
-        "Highlight unavailable for this out-of-page slot";
-
-      return;
-    }
-
-    try {
-      slot.element
-        .scrollIntoView({
-          behavior:
-            "smooth",
-
-          block:
-            "center",
-
-          inline:
-            "center"
-        });
-    } catch (_) {}
-
-    setTimeout(
-      () => {
-        try {
-          const rect =
-            slot.element
-              .getBoundingClientRect();
-
-          const overlay =
-            document.createElement(
-              "div"
-            );
-
-          overlay.id =
-            HIGHLIGHT_ID;
-
-          overlay.style.cssText = [
-            "position:fixed",
-            `left:${Math.max(0, rect.left - 4)}px`,
-            `top:${Math.max(0, rect.top - 4)}px`,
-            `width:${Math.max(10, rect.width + 8)}px`,
-            `height:${Math.max(10, rect.height + 8)}px`,
-            "z-index:2147483646",
-            "pointer-events:none",
-            "border:4px solid #ffcc00",
-            "box-shadow:0 0 0 2px rgba(0,0,0,.8),0 0 24px rgba(255,204,0,.95)",
-            "border-radius:6px"
-          ].join(";");
-
-          const label =
-            document.createElement(
-              "div"
-            );
-
-          label.textContent =
-            slot.adUnitPath;
-
-          label.style.cssText = [
-            "position:absolute",
-            "left:0",
-            "top:-30px",
-            "max-width:500px",
-            "padding:5px 8px",
-            "font:700 12px Arial,sans-serif",
-            "color:#111",
-            "background:#ffcc00",
-            "border-radius:4px",
-            "white-space:nowrap",
-            "overflow:hidden",
-            "text-overflow:ellipsis",
-            "box-shadow:0 2px 8px rgba(0,0,0,.35)"
-          ].join(";");
-
-          overlay
-            .appendChild(
-              label
-            );
-
-          document.documentElement
-            .appendChild(
-              overlay
-            );
-
-          setTimeout(
-            () => {
-              if (
-                overlay.isConnected
-              ) {
-                overlay.remove();
-              }
-            },
-            5000
-          );
-        } catch (_) {}
-      },
-      350
-    );
-  }
-
-  function renderBidTable(
-    slotData
-  ) {
-    const bids =
-      slotData.hbBids ||
-      [];
-
-    if (
-      !bids.length
-    ) {
-      return `
-        <div class="empty">
-          ${
-            slotData.hbDetected
-              ? "HB wrapper detected, but bidder-level bid data was not exposed."
-              : "No Header Bidding data detected."
-          }
-        </div>
-      `;
-    }
-
-    const rows =
-      bids.map(
-        (bid, index) => {
-          const exactPrice =
-            bid.cpm !== null
-              ? money(
-                  bid.cpm,
-                  bid.currency
-                )
-              : "—";
-
-          const bucket =
-            bid.bucket !== ""
-              ? money(
-                  bid.bucket,
-                  "USD"
-                )
-              : "—";
-
-          const response =
-            bid.responseTime !== null
-              ? `${Math.round(
-                  bid.responseTime
-                )} ms`
-              : (
-                  bid.status ||
-                  "—"
-                );
-
-          return `
-            <tr class="${
-              index === 0
-                ? "winner-row"
-                : ""
-            }">
-
-              <td>
-                ${
-                  index === 0
-                    ? "★ "
-                    : ""
-                }
-
-                ${esc(
-                  bid.bidder
-                )}
-              </td>
-
-              <td>
-                ${esc(
-                  exactPrice
-                )}
-              </td>
-
-              <td>
-                ${esc(
-                  bucket
-                )}
-              </td>
-
-              <td>
-                ${esc(
-                  bid.size ||
-                  "—"
-                )}
-              </td>
-
-              <td>
-                ${esc(
-                  response
-                )}
-              </td>
-
-            </tr>
-          `;
-        }
-      ).join("");
-
-    return `
-      <table class="bidtable">
-
-        <thead>
-          <tr>
-            <th>Bidder</th>
-            <th>Exact bid</th>
-            <th>GAM bucket</th>
-            <th>Size</th>
-            <th>Response</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          ${rows}
-        </tbody>
-
-      </table>
-    `;
-  }
-
-  function buildDiagnosticExport(
-    slotData
-  ) {
-    const consent =
-      slotData.consent;
-
-    const request =
-      slotData.bestRequest;
-
-    const ids =
-      slotData.ids;
-
-    return {
-      debugr: {
-        tool:
-          "Debugr Troubleshooting",
-
-        exportedAt:
-          new Date()
-            .toISOString(),
-
-        pageUrl:
-          location.href,
-
-        pageTitle:
-          document.title,
-
-        userAgent:
-          navigator.userAgent
-      },
-
-      environment: {
-        gptAvailable:
-          Boolean(
-            getGoogletag()
-          ),
-
-        pbjsAvailable:
-          Boolean(
-            getPbjs()
-          ),
-
-        tcfApiAvailable:
-          typeof window.__tcfapi ===
-          "function",
-
-        totalActiveSlots:
-          state.slots.length,
-
-        totalIgnoredSlots:
-          state.ignored.length
-      },
-
-      selectedSlot: {
-        index:
-          state.selected,
-
-        originalIndex:
-          slotData.originalIndex,
-
-        adUnitPath:
-          slotData.adUnitPath,
-
-        divId:
-          slotData.divId,
-
-        networkCode:
-          slotData.networkCode,
-
-        outOfPage:
-          slotData.oop,
-
-        configuredSizes:
-          slotData.sizes,
-
-        domSize:
-          slotData.domSize,
-
-        elementExists:
-          Boolean(
-            slotData.element
-          )
-      },
-
-      auction: {
-        winner:
-          slotData.winner,
-
-        ids:
-          ids,
-
-        isBackfill:
-          slotData.response
-            ? slotData.response
-                .isBackfill
-            : null,
-
-        gamLinks: {
-          lineItem:
-            buildLineItemUrl(
-              slotData,
-              ids.lineItemId
-            ),
-
-          advertiser:
-            buildAdvertiserUrl(
-              slotData,
-              ids.advertiserId
-            ),
-
-          order:
-            buildOrderUrl(
-              slotData,
-              ids.orderId
-            ),
-
-          troubleshooting:
-            buildTroubleshootingUrl(
-              slotData
-            )
-        }
-      },
-
-      gpt: {
-        responseInformation:
-          slotData.response,
-
-        slotTargeting:
-          slotData.targeting,
-
-        pageTargeting:
-          slotData.pageTargeting
-      },
-
-      gamRequest:
-        request
-          ? {
-              found:
-                true,
-
-              match:
-                request.match,
-
-              params:
-                request.parsed.params,
-
-              prevScp:
-                request.parsed.prevScp,
-
-              custParams:
-                request.parsed.custParams
-            }
-          : {
-              found:
-                false
-            },
-
-      headerBidding: {
-        detected:
-          slotData.hbDetected,
-
-        wrapperEvidence:
-          slotData.hbWrapperEvidence,
-
-        requestData:
-          slotData.hbRequest,
-
-        bids:
-          slotData.hbBids,
-
-        hbTargeting:
-          getHbTargeting(
-            slotData.targeting
-          )
-      },
-
-      privacy: {
-        gdprApplies:
-          consent.gdprApplies,
-
-        cmpPresent:
-          consent.cmpPresent,
-
-        cmpId:
-          consent.cmpId,
-
-        cmpVersion:
-          consent.cmpVersion,
-
-        tcfPolicyVersion:
-          consent.tcfPolicyVersion,
-
-        eventStatus:
-          consent.eventStatus,
-
-        cmpStatus:
-          consent.cmpStatus,
-
-        consentStringPresent:
-          consent.consentString,
-
-        consentStringLength:
-          String(
-            consent.consentValue ||
-            ""
-          ).length,
-
-        gpp:
-          consent.gpp,
-
-        gppSid:
-          consent.gppSid,
-
-        usPrivacy:
-          consent.usPrivacy,
-
-        usPrivacyValue:
-          consent.usPrivacyValue
-      },
-
-      ignoredSlots:
-        state.ignored
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // Slot collection
+  // ---------------------------------------------------------------------------
 
   function collectSlots() {
     const gt =
@@ -3217,33 +3341,46 @@
             data.bestRequest
           );
 
-        data.hbWrapperEvidence =
-          getHbWrapperEvidence(
+        data.ids =
+          getIdsFromResponse(
+            response
+          );
+
+        data.bidmaticBids =
+          getBidmaticBidsForSlot(
+            adUnitPath
+          );
+
+        data.prebidBids =
+          getPbjsBidsForSlot(
             data
           );
 
         data.hbDetected =
           Boolean(
             data.hbRequest ||
-            data.hbWrapperEvidence
-              .length
+            data.bidmaticBids
+              .length ||
+            data.prebidBids
+              .length ||
+            Object.keys(
+              getHbTargeting(
+                targeting
+              )
+            ).length ||
+            Object.keys(
+              pageTargeting
+            )
+              .some(
+                k =>
+                  /^hb/i
+                    .test(k)
+              )
           );
 
-        data.hbBids =
-          collectHbBids(
+        data.hbWrapperEvidence =
+          getHbWrapperEvidence(
             data
-          );
-
-        if (
-          data.hbBids.length
-        ) {
-          data.hbDetected =
-            true;
-        }
-
-        data.ids =
-          getIdsFromResponse(
-            response
           );
 
         data.consent =
@@ -3256,20 +3393,16 @@
             data
           );
 
-        if (
-          element
-        ) {
+        if (element) {
           try {
-            const rect =
+            const r =
               element
                 .getBoundingClientRect();
 
             data.domSize =
-              `${Math.round(
-                rect.width
-              )}x${Math.round(
-                rect.height
-              )}`;
+              `${Math.round(r.width)}` +
+              "x" +
+              `${Math.round(r.height)}`;
           } catch (_) {
             data.domSize =
               "—";
@@ -3289,18 +3422,12 @@
       .textContent =
       `${state.slots.length} active`;
 
-    $("#ignoredBtn")
-      .textContent =
-      state.showIgnored
-        ? `Hide ignored (${state.ignored.length})`
-        : `Ignored: ${state.ignored.length}`;
-
     select.innerHTML =
       "";
 
     state.slots.forEach(
       (
-        slot,
+        s,
         index
       ) => {
         const option =
@@ -3313,9 +3440,9 @@
 
         option.textContent =
           `${index + 1}. ` +
-          `${slot.adUnitPath}` +
-          `${slot.oop ? " · OOP" : ""}` +
-          ` · ${slot.winner.label}`;
+          `${s.adUnitPath}` +
+          `${s.oop ? " · OOP" : ""}` +
+          ` · ${s.winner.label}`;
 
         select.appendChild(
           option
@@ -3336,7 +3463,581 @@
         state.selected
       );
 
+    renderCaptureStatus();
     renderSelected();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
+
+  function renderCaptureStatus() {
+    const sum =
+      getBidmaticPacketSummary();
+
+    const selected =
+      state.slots[
+        state.selected
+      ];
+
+    const selectedCount =
+      selected
+        ? getBidmaticBidsForSlot(
+            selected.adUnitPath
+          ).length
+        : 0;
+
+    if (
+      sum.packets > 0
+    ) {
+      $("#captureStatus")
+        .innerHTML = `
+          <span class="capture-ok">
+            Bidmatic capture active
+          </span>
+
+          · packets ${sum.packets}
+          · ad units ${sum.adUnits}
+          · bidder rows ${sum.bidRows}
+          ${
+            selected
+              ? `· selected bids ${selectedCount}`
+              : ""
+          }
+        `;
+    } else {
+      $("#captureStatus")
+        .innerHTML = `
+          <span class="capture-wait">
+            Bidmatic capture armed
+          </span>
+
+          · no multitracking payload captured yet.
+          It will capture the next auction / refresh after Debugr was opened.
+        `;
+    }
+  }
+
+  function getWinnerBidder(s) {
+    return (
+      firstTarget(
+        s.targeting,
+        "hb_bidder"
+      ) ||
+      s.hbRequest?.bidder ||
+      s.bidmaticBids
+        .find(
+          b =>
+            b.winner
+        )
+        ?.bidder ||
+      ""
+    );
+  }
+
+  function getGamBucket(s) {
+    return (
+      firstTarget(
+        s.targeting,
+        "hb_pb"
+      ) ||
+      s.hbRequest?.bucket ||
+      ""
+    );
+  }
+
+  function renderBidTable(s) {
+    const bids =
+      s.bidmaticBids.length
+        ? s.bidmaticBids
+        : s.prebidBids;
+
+    if (
+      !bids.length
+    ) {
+      const bidder =
+        getWinnerBidder(s);
+
+      const bucket =
+        getGamBucket(s);
+
+      if (
+        s.hbDetected &&
+        bidder
+      ) {
+        return `
+          <div class="grid">
+
+            ${kv(
+              "Bidder sent to GAM",
+              `
+                <span class="hb">
+                  ${esc(bidder)}
+                </span>
+              `
+            )}
+
+            ${kv(
+              "GAM bucket",
+              bucket !== ""
+                ? esc(
+                    money(
+                      bucket,
+                      ""
+                    )
+                  )
+                : "—"
+            )}
+
+            ${kv(
+              "Auction capture",
+              `
+                <span class="warn">
+                  WAITING FOR NEXT AUCTION
+                </span>
+              `
+            )}
+
+          </div>
+        `;
+      }
+
+      return `
+        <div class="empty">
+          No captured bidder rows yet.
+          Debugr is armed for the next Bidmatic multitracking event.
+        </div>
+      `;
+    }
+
+    const packetCurrency =
+      captureStore.packets
+        .slice()
+        .reverse()
+        .find(
+          p =>
+            p.json?.cur
+        )
+        ?.json?.cur ||
+      "";
+
+    const rows =
+      bids.map(
+        b => {
+          const sizes =
+            Array.isArray(
+              b.sizes
+            )
+              ? b.sizes
+                  .map(
+                    x =>
+                      x &&
+                      typeof x ===
+                        "object"
+                        ? `${x.w}x${x.h}`
+                        : String(x)
+                  )
+                  .join(", ")
+              : (
+                  b.size ||
+                  "—"
+                );
+
+          const status =
+            b.timeout
+              ? "TIMEOUT"
+              : b.winner
+                ? "HB WINNER"
+                : "BID";
+
+          const rowClass =
+            b.timeout
+              ? "timeout-row"
+              : b.winner
+                ? "winner-row"
+                : "";
+
+          return `
+            <tr class="${rowClass}">
+
+              <td>
+                ${b.winner ? "★ " : ""}
+                ${esc(b.bidder)}
+              </td>
+
+              <td>
+                ${esc(
+                  money(
+                    b.originalBid,
+                    b.originalCurrency ||
+                    ""
+                  )
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  money(
+                    b.bid,
+                    b.currency ||
+                    packetCurrency
+                  )
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  money(
+                    b.pubBid,
+                    b.currency ||
+                    packetCurrency
+                  )
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  b.tte != null
+                    ? `${Math.round(b.tte)} ms`
+                    : "—"
+                )}
+              </td>
+
+              <td>
+                ${esc(sizes)}
+              </td>
+
+              <td>
+                ${
+                  b.timeout
+                    ? `
+                        <span class="no">
+                          ${status}
+                        </span>
+                      `
+                    : b.winner
+                      ? `
+                          <span class="hb">
+                            ${status}
+                          </span>
+                        `
+                      : esc(status)
+                }
+              </td>
+
+            </tr>
+          `;
+        }
+      )
+      .join("");
+
+    return `
+      <table class="bidtable">
+
+        <thead>
+          <tr>
+            <th>Bidder</th>
+            <th>Original bid</th>
+            <th>Adjusted bid</th>
+            <th>Publisher bid</th>
+            <th>TTE</th>
+            <th>Size</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${rows}
+        </tbody>
+
+      </table>
+    `;
+  }
+
+  function sanitizeParams(params) {
+    const out = {};
+
+    for (
+      const [
+        k,
+        v
+      ] of
+      Object.entries(
+        params ||
+        {}
+      )
+    ) {
+      if (
+        k === "gdpr_consent" ||
+        k === "gpp" ||
+        k === "addtl_consent" ||
+        k === "cookie" ||
+        k === "gpic" ||
+        k === "eo_id_str"
+      ) {
+        out[k] = {
+          present:
+            Boolean(v),
+
+          length:
+            String(
+              v ||
+              ""
+            ).length
+        };
+      } else {
+        out[k] =
+          v;
+      }
+    }
+
+    return out;
+  }
+
+  function buildDiagnosticExport(s) {
+    const ids =
+      s.ids;
+
+    return {
+      debugr: {
+        tool:
+          "Debugr Troubleshooting",
+
+        exportedAt:
+          new Date()
+            .toISOString(),
+
+        pageUrl:
+          location.href,
+
+        pageTitle:
+          document.title,
+
+        userAgent:
+          navigator.userAgent
+      },
+
+      environment: {
+        gptAvailable:
+          Boolean(
+            getGoogletag()
+          ),
+
+        pbjsAvailable:
+          Boolean(
+            getPbjs()
+          ),
+
+        tcfApiAvailable:
+          typeof window.__tcfapi ===
+          "function",
+
+        totalActiveSlots:
+          state.slots.length,
+
+        totalIgnoredSlots:
+          state.ignored.length,
+
+        bidmaticCapture: {
+          installed:
+            captureStore.installed,
+
+          installedAt:
+            new Date(
+              captureStore.installedAt
+            ).toISOString(),
+
+          stats:
+            captureStore.stats,
+
+          summary:
+            getBidmaticPacketSummary()
+        }
+      },
+
+      selectedSlot: {
+        index:
+          state.selected,
+
+        originalIndex:
+          s.originalIndex,
+
+        adUnitPath:
+          s.adUnitPath,
+
+        divId:
+          s.divId,
+
+        networkCode:
+          s.networkCode,
+
+        outOfPage:
+          s.oop,
+
+        configuredSizes:
+          s.sizes,
+
+        domSize:
+          s.domSize,
+
+        elementExists:
+          Boolean(
+            s.element
+          )
+      },
+
+      auction: {
+        winner:
+          s.winner,
+
+        ids,
+
+        isBackfill:
+          s.response
+            ?.isBackfill ??
+          null,
+
+        gamLinks: {
+          lineItem:
+            buildLineItemUrl(
+              s,
+              ids.lineItemId
+            ),
+
+          advertiser:
+            buildAdvertiserUrl(
+              s,
+              ids.advertiserId
+            ),
+
+          order:
+            buildOrderUrl(
+              s,
+              ids.orderId
+            ),
+
+          troubleshooting:
+            buildTroubleshootingUrl(
+              s
+            )
+        }
+      },
+
+      gpt: {
+        responseInformation:
+          s.response,
+
+        slotTargeting:
+          s.targeting,
+
+        pageTargeting:
+          s.pageTargeting
+      },
+
+      gamRequest:
+        s.bestRequest
+          ? {
+              found:
+                true,
+
+              match:
+                s.bestRequest
+                  .match,
+
+              params:
+                sanitizeParams(
+                  s.bestRequest
+                    .parsed
+                    .params
+                ),
+
+              prevScp:
+                s.bestRequest
+                  .parsed
+                  .prevScp,
+
+              custParams:
+                s.bestRequest
+                  .parsed
+                  .custParams
+            }
+          : {
+              found:
+                false
+            },
+
+      headerBidding: {
+        detected:
+          s.hbDetected,
+
+        bidderSentToGam:
+          getWinnerBidder(s),
+
+        gamPriceBucket:
+          getGamBucket(s),
+
+        requestData:
+          s.hbRequest,
+
+        wrapperEvidence:
+          s.hbWrapperEvidence,
+
+        bidmaticBids:
+          s.bidmaticBids,
+
+        prebidBids:
+          s.prebidBids,
+
+        hbTargeting:
+          getHbTargeting(
+            s.targeting
+          )
+      },
+
+      privacy: {
+        gdprApplies:
+          s.consent.gdprApplies,
+
+        cmpPresent:
+          s.consent.cmpPresent,
+
+        cmpId:
+          s.consent.cmpId,
+
+        cmpVersion:
+          s.consent.cmpVersion,
+
+        tcfPolicyVersion:
+          s.consent.tcfPolicyVersion,
+
+        eventStatus:
+          s.consent.eventStatus,
+
+        cmpStatus:
+          s.consent.cmpStatus,
+
+        consentStringPresent:
+          s.consent.consentString,
+
+        consentStringLength:
+          String(
+            s.consent.consentValue ||
+            ""
+          ).length,
+
+        gpp:
+          s.consent.gpp,
+
+        gppSid:
+          s.consent.gppSid,
+
+        usPrivacy:
+          s.consent.usPrivacy
+      },
+
+      ignoredSlots:
+        state.ignored
+    };
   }
 
   function renderSelected() {
@@ -3358,31 +4059,19 @@
     const ids =
       s.ids;
 
-    const consent =
-      s.consent;
+    const winnerBidder =
+      getWinnerBidder(s);
 
-    const lineItemUrl =
-      buildLineItemUrl(
-        s,
-        ids.lineItemId
-      );
+    const bucket =
+      getGamBucket(s);
 
-    const advertiserUrl =
-      buildAdvertiserUrl(
-        s,
-        ids.advertiserId
-      );
-
-    const orderUrl =
-      buildOrderUrl(
-        s,
-        ids.orderId
-      );
-
-    const troubleshootingUrl =
-      buildTroubleshootingUrl(
-        s
-      );
+    const bidmaticWinner =
+      s.bidmaticBids
+        .find(
+          b =>
+            b.winner
+        ) ||
+      null;
 
     const winnerRows = [
       kv(
@@ -3397,17 +4086,6 @@
       )
     ];
 
-    const winnerBidder =
-      firstTarget(
-        s.targeting,
-        "hb_bidder"
-      ) ||
-      (
-        s.hbRequest &&
-        s.hbRequest.bidder
-      ) ||
-      "";
-
     if (
       s.winner.type ===
         "hb" &&
@@ -3415,7 +4093,7 @@
     ) {
       winnerRows.push(
         kv(
-          "Bidder",
+          "HB bidder",
           `
             <span class="hb">
               ${esc(
@@ -3428,9 +4106,8 @@
     }
 
     if (
-      s.response &&
-      s.response.isBackfill ===
-        true
+      s.response?.isBackfill ===
+      true
     ) {
       winnerRows.push(
         kv(
@@ -3445,16 +4122,19 @@
     }
 
     if (
-      ids.lineItemId !== null &&
-      Number(ids.lineItemId) >
-        0
+      Number(
+        ids.lineItemId
+      ) > 0
     ) {
       winnerRows.push(
         kv(
           "Line item ID",
           linkedId(
             ids.lineItemId,
-            lineItemUrl,
+            buildLineItemUrl(
+              s,
+              ids.lineItemId
+            ),
             "line item"
           )
         )
@@ -3462,7 +4142,7 @@
     }
 
     if (
-      ids.creativeId !== null
+      ids.creativeId != null
     ) {
       winnerRows.push(
         kv(
@@ -3481,13 +4161,10 @@
     }
 
     if (
-      ids.sourceAgnosticLineItemId !==
+      ids.sourceAgnosticLineItemId !=
         null &&
-      (
-        ids.lineItemId === null ||
-        ids.sourceAgnosticLineItemId !==
-          ids.lineItemId
-      )
+      ids.sourceAgnosticLineItemId !==
+        ids.lineItemId
     ) {
       winnerRows.push(
         kv(
@@ -3506,13 +4183,10 @@
     }
 
     if (
-      ids.sourceAgnosticCreativeId !==
+      ids.sourceAgnosticCreativeId !=
         null &&
-      (
-        ids.creativeId === null ||
-        ids.sourceAgnosticCreativeId !==
-          ids.creativeId
-      )
+      ids.sourceAgnosticCreativeId !==
+        ids.creativeId
     ) {
       winnerRows.push(
         kv(
@@ -3531,15 +4205,18 @@
     }
 
     if (
-      ids.advertiserId !==
-        null
+      ids.advertiserId !=
+      null
     ) {
       winnerRows.push(
         kv(
           "Advertiser ID",
           linkedId(
             ids.advertiserId,
-            advertiserUrl,
+            buildAdvertiserUrl(
+              s,
+              ids.advertiserId
+            ),
             "advertiser"
           )
         )
@@ -3547,15 +4224,18 @@
     }
 
     if (
-      ids.orderId !==
-        null
+      ids.orderId !=
+      null
     ) {
       winnerRows.push(
         kv(
           "Order ID",
           linkedId(
             ids.orderId,
-            orderUrl,
+            buildOrderUrl(
+              s,
+              ids.orderId
+            ),
             "order"
           )
         )
@@ -3568,7 +4248,9 @@
         ids.queryId
           ? linkedId(
               ids.queryId,
-              troubleshootingUrl,
+              buildTroubleshootingUrl(
+                s
+              ),
               "Troubleshooting"
             )
           : `
@@ -3581,33 +4263,25 @@
 
     const hbRows = [
       kv(
-        "HB wrapper",
+        "HB detected",
         yesNo(
           s.hbDetected
         )
       ),
 
       kv(
-        "Bid data",
-        s.hbBids.length
+        "Bidmatic capture",
+        s.bidmaticBids.length
           ? `
               <span class="yes">
-                AVAILABLE
+                ${s.bidmaticBids.length} BIDDER ROWS
               </span>
             `
-          : (
-              s.hbDetected
-                ? `
-                    <span class="warn">
-                      NOT EXPOSED
-                    </span>
-                  `
-                : `
-                    <span class="no">
-                      NO
-                    </span>
-                  `
-            )
+          : `
+              <span class="warn">
+                WAITING FOR NEXT AUCTION
+              </span>
+            `
       )
     ];
 
@@ -3628,27 +4302,72 @@
       );
     }
 
-    const targetBucket =
-      firstTarget(
-        s.targeting,
-        "hb_pb"
-      ) ||
-      (
-        s.hbRequest &&
-        s.hbRequest.bucket
-      ) ||
-      "";
-
     if (
-      targetBucket !== ""
+      bucket !== ""
     ) {
       hbRows.push(
         kv(
           "GAM price bucket",
           esc(
             money(
-              targetBucket,
-              "USD"
+              bucket,
+              ""
+            )
+          )
+        )
+      );
+    }
+
+    if (
+      bidmaticWinner
+    ) {
+      hbRows.push(
+        kv(
+          "HB auction winner",
+          `
+            <span class="hb">
+              ${esc(
+                bidmaticWinner.bidder
+              )}
+            </span>
+          `
+        )
+      );
+
+      hbRows.push(
+        kv(
+          "Original bid",
+          esc(
+            money(
+              bidmaticWinner.originalBid,
+              bidmaticWinner.originalCurrency ||
+              ""
+            )
+          )
+        )
+      );
+
+      hbRows.push(
+        kv(
+          "Adjusted bid",
+          esc(
+            money(
+              bidmaticWinner.bid,
+              bidmaticWinner.currency ||
+              ""
+            )
+          )
+        )
+      );
+
+      hbRows.push(
+        kv(
+          "Publisher bid",
+          esc(
+            money(
+              bidmaticWinner.pubBid,
+              bidmaticWinner.currency ||
+              ""
             )
           )
         )
@@ -3775,20 +4494,20 @@
           ${kv(
             "GDPR applies",
             yesNo(
-              consent.gdprApplies
+              s.consent.gdprApplies
             )
           )}
 
           ${kv(
             "TCF CMP",
             yesNo(
-              consent.cmpPresent
+              s.consent.cmpPresent
             )
           )}
 
           ${kv(
             "Consent string",
-            consent.consentString ===
+            s.consent.consentString ==
               null
               ? `
                   <span class="muted">
@@ -3796,14 +4515,14 @@
                   </span>
                 `
               : yesNo(
-                  consent.consentString
+                  s.consent.consentString
                 )
           )}
 
           ${kv(
             "CMP ID",
             esc(
-              consent.cmpId ??
+              s.consent.cmpId ??
               "—"
             )
           )}
@@ -3811,7 +4530,7 @@
           ${kv(
             "TCF version",
             esc(
-              consent.tcfPolicyVersion ??
+              s.consent.tcfPolicyVersion ??
               "—"
             )
           )}
@@ -3819,23 +4538,9 @@
           ${kv(
             "CMP status",
             esc(
-              consent.cmpStatus ||
+              s.consent.cmpStatus ||
               "—"
             )
-          )}
-
-          ${kv(
-            "GPP",
-            consent.gpp ===
-              null
-              ? `
-                  <span class="muted">
-                    UNKNOWN
-                  </span>
-                `
-              : yesNo(
-                  consent.gpp
-                )
           )}
 
         </div>
@@ -3849,6 +4554,16 @@
           <summary>
             Advanced
           </summary>
+
+          <div class="section-title">
+            Bidmatic bids
+          </div>
+
+          <pre>${esc(
+            stringify(
+              s.bidmaticBids
+            )
+          )}</pre>
 
           <div class="section-title">
             GPT responseInformation
@@ -3877,6 +4592,29 @@
           <pre>${esc(
             stringify(
               s.bestRequest
+                ? {
+                    match:
+                      s.bestRequest
+                        .match,
+
+                    params:
+                      sanitizeParams(
+                        s.bestRequest
+                          .parsed
+                          .params
+                      ),
+
+                    prevScp:
+                      s.bestRequest
+                        .parsed
+                        .prevScp,
+
+                    custParams:
+                      s.bestRequest
+                        .parsed
+                        .custParams
+                  }
+                : null
             )
           )}</pre>
 
@@ -3900,16 +4638,6 @@
             )
           )}</pre>
 
-          <div class="section-title">
-            TC Data
-          </div>
-
-          <pre>${esc(
-            stringify(
-              state.tcData
-            )
-          )}</pre>
-
         </details>
 
       </div>
@@ -3919,13 +4647,10 @@
 
     $("#footer")
       .textContent =
-      [
-        `GPT ${getGoogletag() ? "✓" : "✕"}`,
-        `Winner ${s.winner.label}`,
-        `HB ${s.hbDetected ? "✓" : "✕"}`,
-        `Request ${s.bestRequest ? "✓" : "✕"}`
-      ]
-        .join(" · ");
+      `GPT ${getGoogletag() ? "✓" : "✕"}` +
+      ` · Winner ${s.winner.label}` +
+      ` · HB ${s.hbDetected ? "✓" : "✕"}` +
+      ` · Bidmatic ${s.bidmaticBids.length ? "✓" : "waiting"}`;
   }
 
   function bindCopyButtons() {
@@ -3946,15 +4671,14 @@
                 ) ||
                 "";
 
-              const ok =
+              const old =
+                button.textContent;
+
+              if (
                 await copyText(
                   value
-                );
-
-              if (ok) {
-                const old =
-                  button.textContent;
-
+                )
+              ) {
                 button.textContent =
                   "Copied";
 
@@ -3972,6 +4696,135 @@
       );
   }
 
+  // ---------------------------------------------------------------------------
+  // Highlight
+  // ---------------------------------------------------------------------------
+
+  function highlightSelectedSlot() {
+    const s =
+      state.slots[
+        state.selected
+      ];
+
+    document
+      .getElementById(
+        HIGHLIGHT_ID
+      )
+      ?.remove();
+
+    if (
+      !s ||
+      s.oop ||
+      !s.element
+    ) {
+      $("#footer")
+        .textContent =
+        "Highlight unavailable for this slot";
+
+      return;
+    }
+
+    try {
+      s.element
+        .scrollIntoView({
+          behavior:
+            "smooth",
+
+          block:
+            "center",
+
+          inline:
+            "center"
+        });
+    } catch (_) {}
+
+    setTimeout(
+      () => {
+        try {
+          const rect =
+            s.element
+              .getBoundingClientRect();
+
+          const overlay =
+            document.createElement(
+              "div"
+            );
+
+          overlay.id =
+            HIGHLIGHT_ID;
+
+          overlay.style.cssText =
+            [
+              "position:fixed",
+
+              `left:${Math.max(
+                0,
+                rect.left - 4
+              )}px`,
+
+              `top:${Math.max(
+                0,
+                rect.top - 4
+              )}px`,
+
+              `width:${Math.max(
+                10,
+                rect.width + 8
+              )}px`,
+
+              `height:${Math.max(
+                10,
+                rect.height + 8
+              )}px`,
+
+              "z-index:2147483646",
+
+              "pointer-events:none",
+
+              "border:4px solid #ffcc00",
+
+              "box-shadow:0 0 0 2px rgba(0,0,0,.8),0 0 24px rgba(255,204,0,.95)",
+
+              "border-radius:6px"
+            ]
+              .join(";");
+
+          const label =
+            document.createElement(
+              "div"
+            );
+
+          label.textContent =
+            s.adUnitPath;
+
+          label.style.cssText =
+            "position:absolute;left:0;top:-30px;max-width:500px;padding:5px 8px;font:700 12px Arial,sans-serif;color:#111;background:#ffcc00;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 8px rgba(0,0,0,.35)";
+
+          overlay
+            .appendChild(
+              label
+            );
+
+          document.documentElement
+            .appendChild(
+              overlay
+            );
+
+          setTimeout(
+            () =>
+              overlay.remove(),
+            5000
+          );
+        } catch (_) {}
+      },
+      350
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------------
+
   async function refresh() {
     const current =
       state.slots[
@@ -3979,44 +4832,43 @@
       ];
 
     const previousDiv =
-      current
-        ? current.divId
-        : "";
+      current?.divId ||
+      "";
 
     const previousPath =
-      current
-        ? current.adUnitPath
-        : "";
+      current?.adUnitPath ||
+      "";
 
     await readTcData();
 
     collectSlots();
 
-    const index =
+    const idx =
       state.slots
         .findIndex(
-          slot =>
+          s =>
             (
               previousDiv &&
-              slot.divId ===
+              s.divId ===
                 previousDiv
             ) ||
             (
               previousPath &&
-              slot.adUnitPath ===
+              s.adUnitPath ===
                 previousPath
             )
         );
 
     if (
-      index >= 0
+      idx >= 0
     ) {
       state.selected =
-        index;
+        idx;
 
       select.value =
-        String(index);
+        String(idx);
 
+      renderCaptureStatus();
       renderSelected();
     }
   }
@@ -4030,6 +4882,7 @@
         ) ||
         0;
 
+      renderCaptureStatus();
       renderSelected();
     }
   );
@@ -4050,26 +4903,14 @@
     .addEventListener(
       "click",
       async () => {
-        const slot =
+        const s =
           state.slots[
             state.selected
           ];
 
-        if (!slot) {
+        if (!s) {
           return;
         }
-
-        const data =
-          buildDiagnosticExport(
-            slot
-          );
-
-        const json =
-          JSON.stringify(
-            data,
-            null,
-            2
-          );
 
         const button =
           $("#copyJsonBtn");
@@ -4079,7 +4920,13 @@
 
         const ok =
           await copyText(
-            json
+            JSON.stringify(
+              buildDiagnosticExport(
+                s
+              ),
+              null,
+              2
+            )
           );
 
         button.textContent =
@@ -4094,21 +4941,6 @@
           },
           1300
         );
-      }
-    );
-
-  $("#ignoredBtn")
-    .addEventListener(
-      "click",
-      () => {
-        state.showIgnored =
-          !state.showIgnored;
-
-        $("#ignoredBtn")
-          .textContent =
-          state.showIgnored
-            ? `Hide ignored (${state.ignored.length})`
-            : `Ignored: ${state.ignored.length}`;
       }
     );
 
@@ -4133,20 +4965,15 @@
           clearInterval(
             state.timer
           );
-
-          state.timer =
-            null;
         }
 
-        if (
+        state.timer =
           state.auto
-        ) {
-          state.timer =
-            setInterval(
-              refresh,
-              2000
-            );
-        }
+            ? setInterval(
+                refresh,
+                2000
+              )
+            : null;
       }
     );
 
@@ -4157,15 +4984,15 @@
         const gt =
           getGoogletag();
 
-        if (
-          gt &&
-          typeof gt.openConsole ===
-            "function"
-        ) {
-          try {
+        try {
+          if (
+            gt &&
+            typeof gt.openConsole ===
+              "function"
+          ) {
             gt.openConsole();
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
       }
     );
 
@@ -4181,19 +5008,28 @@
           );
         }
 
-        const highlight =
-          document.getElementById(
-            HIGHLIGHT_ID
+        captureStore.listeners
+          .delete(
+            onCapture
           );
 
-        if (
-          highlight
-        ) {
-          highlight.remove();
-        }
+        document
+          .getElementById(
+            HIGHLIGHT_ID
+          )
+          ?.remove();
 
         host.remove();
       }
+    );
+
+  function onCapture() {
+    collectSlots();
+  }
+
+  captureStore.listeners
+    .add(
+      onCapture
     );
 
   (async () => {
