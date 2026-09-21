@@ -1,18 +1,30 @@
 (function () {
   if (window.top !== window.self) return;
 
+  // =========================================================
+  // REOPEN EXISTING DEBUGR
+  // =========================================================
+
   if (window.__QAI_v10) {
     const existingPanel = document.getElementById('qai-panel');
     const existingIcon = document.getElementById('qai-collapsed');
 
     if (existingPanel) {
-      existingPanel.style.display = 'block';
-      existingPanel.style.visibility = 'visible';
-      existingPanel.style.opacity = '1';
+      existingPanel.style.setProperty('display', 'block', 'important');
+      existingPanel.style.setProperty('visibility', 'visible', 'important');
+      existingPanel.style.setProperty('opacity', '1', 'important');
 
       if (existingIcon) {
-        existingIcon.style.display = 'none';
+        existingIcon.style.setProperty('display', 'none', 'important');
       }
+
+      existingPanel.scrollLeft = 0;
+
+      const top = document.getElementById('qai-top');
+      const panels = document.getElementById('qai-panels');
+
+      if (top) top.scrollLeft = 0;
+      if (panels) panels.scrollLeft = 0;
 
       try {
         localStorage.removeItem('__qai_collapsed');
@@ -26,7 +38,9 @@
 
   window.__QAI_v10 = true;
 
-  // ---------- small helpers
+  // =========================================================
+  // HELPERS
+  // =========================================================
 
   const esc = s =>
     String(s ?? '')
@@ -98,7 +112,37 @@
     } catch {}
   }
 
-  // ---------- HEADER BIDDING DETECTION
+  function getViewport() {
+    const vv = window.visualViewport;
+
+    return {
+      width:
+        vv?.width ||
+        window.innerWidth ||
+        document.documentElement.clientWidth ||
+        360,
+
+      height:
+        vv?.height ||
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        640,
+
+      left:
+        vv?.offsetLeft || 0,
+
+      top:
+        vv?.offsetTop || 0
+    };
+  }
+
+  function isMobileViewport() {
+    return getViewport().width <= 700;
+  }
+
+  // =========================================================
+  // HEADER BIDDING
+  // =========================================================
 
   function detectHB(targeting) {
     const targetingObj = targeting || {};
@@ -210,25 +254,9 @@
         : 'HB';
 
       return `
-        <span
-          title="${esc(
-            hb.keys?.length
-              ? `Detected targeting: ${hb.keys.join(', ')}`
-              : 'Header bidding detected'
-          )}"
-          style="
-            display:inline-block;
-            padding:2px 6px;
-            border-radius:5px;
-            background:#dff5e5;
-            border:1px solid #83c996;
-            color:#176b2c;
-            font-weight:700;
-            white-space:nowrap;
-          "
-        >
+        <span class="qai-hb qai-hb-yes">
           HB ✓
-          <span style="font-weight:400">
+          <span class="qai-hb-engine">
             ${esc(label)}
           </span>
         </span>
@@ -236,25 +264,15 @@
     }
 
     return `
-      <span
-        title="No HB targeting detected on this GAM slot"
-        style="
-          display:inline-block;
-          padding:2px 6px;
-          border-radius:5px;
-          background:#ffe1e1;
-          border:1px solid #e49a9a;
-          color:#a31d1d;
-          font-weight:700;
-          white-space:nowrap;
-        "
-      >
+      <span class="qai-hb qai-hb-no">
         HB ✕
       </span>
     `;
   }
 
-  // ---------- slot badge + overlay
+  // =========================================================
+  // SLOT OVERLAYS
+  // =========================================================
 
   function addBadge(el, num) {
     if (!el) return;
@@ -285,8 +303,8 @@
       'height:16px',
       'text-align:center',
       'line-height:16px',
-      'opacity:0.9',
-      'box-shadow:0 0 2px rgba(0,0,0,0.3)',
+      'opacity:.9',
+      'box-shadow:0 0 2px rgba(0,0,0,.3)',
       'pointer-events:none',
       'z-index:2147483647'
     ].join(';');
@@ -320,15 +338,15 @@
       'left:3px',
       'bottom:2px',
       'max-width:70%',
-      'background:rgba(255,235,175,0.72)',
+      'background:rgba(255,235,175,.72)',
       'backdrop-filter:blur(6px)',
       '-webkit-backdrop-filter:blur(6px)',
-      'border:1px solid rgba(91,61,138,0.25)',
+      'border:1px solid rgba(91,61,138,.25)',
       'border-radius:8px',
       'padding:4px 6px',
       'font:11px Arial,sans-serif',
       'color:#2b1e45',
-      'box-shadow:0 2px 8px rgba(0,0,0,0.15)',
+      'box-shadow:0 2px 8px rgba(0,0,0,.15)',
       'pointer-events:none',
       'z-index:2147483647',
       'white-space:nowrap',
@@ -349,9 +367,13 @@
     el.appendChild(o);
   }
 
-  // ---------- styles
+  // =========================================================
+  // CSS
+  // =========================================================
 
   const qaiStyle = document.createElement('style');
+
+  qaiStyle.id = 'qai-style';
 
   qaiStyle.textContent = `
     #qai-panel,
@@ -362,42 +384,87 @@
     #qai-panel {
       width:560px;
       max-width:calc(100vw - 20px);
-      max-height:52vh;
-      overflow:hidden;
+      max-height:70vh;
+      overflow:hidden !important;
+    }
+
+    #qai-header {
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:6px;
+      width:100%;
+      min-width:0;
+    }
+
+    #qai-title {
+      font-size:13px;
+      font-weight:700;
+      flex:0 0 auto;
+    }
+
+    #qai-controls {
+      display:flex;
+      flex-wrap:wrap;
+      gap:5px;
+      min-width:0;
+    }
+
+    #qai-panel button {
+      font:12px Arial,sans-serif !important;
+      padding:4px 7px !important;
+      min-height:27px;
+      border:1px solid #999;
+      border-radius:4px;
+      background:#f8f8f8;
+      color:#222;
     }
 
     #qai-body {
       display:flex;
       flex-direction:column;
       gap:8px;
-      max-height:calc(52vh - 44px);
-      min-width:0;
       width:100%;
+      min-width:0;
+      max-height:calc(70vh - 44px);
+      overflow:hidden;
+    }
+
+    #qai-head {
+      width:100%;
+      min-width:0;
+      flex:0 0 auto;
+      overflow-wrap:anywhere;
     }
 
     #qai-top {
       flex:0 0 auto;
-      max-height:22vh;
-      overflow:auto;
-      padding-right:4px;
-      min-width:0;
       width:100%;
+      min-width:0;
+      max-height:28vh;
+      overflow:auto;
       -webkit-overflow-scrolling:touch;
     }
 
     #qai-slots {
-      min-width:0;
       width:100%;
+      min-width:0;
     }
 
     #qai-panels {
       flex:1 1 auto;
-      overflow:auto !important;
-      max-height:none !important;
-      padding-right:4px;
-      min-width:0;
       width:100%;
+      min-width:0;
+      overflow:auto;
       -webkit-overflow-scrolling:touch;
+    }
+
+    .qai-desktop-only {
+      display:block;
+    }
+
+    .qai-mobile-only {
+      display:none;
     }
 
     #qai-panel .qai-table {
@@ -408,147 +475,261 @@
     }
 
     #qai-panel .qai-table thead tr {
-      background:rgba(233,221,255,0.35) !important;
-      backdrop-filter:blur(4px);
-      -webkit-backdrop-filter:blur(4px);
+      background:rgba(233,221,255,.35) !important;
     }
 
     #qai-panel .qai-table th {
-      background:rgba(233,221,255,0.25);
+      background:rgba(233,221,255,.25);
     }
 
     #qai-panel .qai-table td {
-      background:rgba(245,240,255,0.18);
+      background:rgba(245,240,255,.18);
     }
 
     #qai-panel .qai-table td,
     #qai-panel .qai-table th {
-      border:1px solid rgba(209,196,255,0.55) !important;
+      border:1px solid rgba(209,196,255,.55) !important;
+      padding:4px 6px;
+      vertical-align:top;
+    }
+
+    .qai-hb {
+      display:inline-block;
+      padding:2px 6px;
+      border-radius:5px;
+      font-weight:700;
+      white-space:nowrap;
+    }
+
+    .qai-hb-yes {
+      background:#dff5e5;
+      border:1px solid #83c996;
+      color:#176b2c;
+    }
+
+    .qai-hb-no {
+      background:#ffe1e1;
+      border:1px solid #e49a9a;
+      color:#a31d1d;
+    }
+
+    .qai-hb-engine {
+      font-weight:400;
     }
 
     #qai-panel .qai-det {
       position:relative;
+      width:100%;
+      min-width:0;
+      max-width:100%;
       margin:6px 0;
-      border:1px dashed rgba(215,202,255,0.6);
+      border:1px dashed rgba(215,202,255,.6);
       border-radius:8px;
       padding:8px 8px 24px;
-      background:rgba(245,240,255,0.25);
-      backdrop-filter:blur(6px);
-      -webkit-backdrop-filter:blur(6px);
-      min-width:0;
-      width:100%;
-      max-width:100%;
+      background:rgba(245,240,255,.25);
+      overflow:hidden;
     }
 
     #qai-panel .qai-sum {
       cursor:pointer;
       font-weight:600;
-      background:rgba(233,221,255,0.22);
-      padding:4px 6px;
+      background:rgba(233,221,255,.22);
+      padding:5px 6px;
       border-radius:6px;
-      max-width:100%;
+      white-space:normal;
       overflow-wrap:anywhere;
       word-break:break-word;
     }
 
     #qai-panel .qai-mismatch {
-      background:rgba(255,120,120,0.22) !important;
+      background:rgba(255,120,120,.22) !important;
     }
 
-    #qai-panel button {
-      font:inherit;
+    .qai-mobile-list {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      width:100%;
+      min-width:0;
+    }
+
+    .qai-mobile-card {
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      border:1px solid rgba(91,61,138,.25);
+      border-radius:9px;
+      background:rgba(248,245,255,.72);
+      padding:8px;
+      overflow:hidden;
+    }
+
+    .qai-mobile-card-head {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      width:100%;
+      min-width:0;
+      margin-bottom:7px;
+    }
+
+    .qai-mobile-num {
+      background:#5b3d8a;
+      color:white;
+      border-radius:12px;
+      padding:2px 7px;
+      font-weight:700;
+      flex:0 0 auto;
+    }
+
+    .qai-mobile-type {
+      font-weight:700;
+      flex:0 0 auto;
+    }
+
+    .qai-mobile-row {
+      display:grid;
+      grid-template-columns:82px minmax(0,1fr);
+      column-gap:6px;
+      margin:4px 0;
+      width:100%;
+      min-width:0;
+    }
+
+    .qai-mobile-label {
+      color:#685c7d;
+      font-size:11px;
+      font-weight:600;
+    }
+
+    .qai-mobile-value {
+      min-width:0;
+      font-size:11px;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+    }
+
+    .qai-mobile-actions {
+      margin-top:8px;
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+
+    .qai-mobile-targeting {
+      margin-top:7px;
+      width:100%;
+      max-height:140px;
+      overflow:auto;
+      border-top:1px solid rgba(91,61,138,.16);
+      padding-top:6px;
+      font:10px/1.4 monospace;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      -webkit-overflow-scrolling:touch;
     }
 
     @media (max-width:700px) {
       #qai-panel {
         margin:0 !important;
+        padding:8px !important;
         overflow:hidden !important;
         border-radius:10px !important;
       }
 
+      #qai-header {
+        display:block !important;
+      }
+
+      #qai-title {
+        display:block !important;
+        margin-bottom:6px !important;
+      }
+
+      #qai-controls {
+        display:grid !important;
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+        width:100% !important;
+        gap:5px !important;
+      }
+
+      #qai-panel button {
+        width:100% !important;
+        max-width:100% !important;
+        padding:6px 4px !important;
+        font-size:11px !important;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+
       #qai-body {
-        overflow:hidden !important;
+        width:100% !important;
         min-width:0 !important;
+        max-width:100% !important;
+        overflow:hidden !important;
       }
 
       #qai-head {
         width:100% !important;
+        min-width:0 !important;
         max-width:100% !important;
-        overflow-wrap:anywhere !important;
-        word-break:break-word !important;
+        font-size:11px !important;
       }
 
       #qai-top {
         width:100% !important;
-        max-width:100% !important;
         min-width:0 !important;
-        overflow-x:auto !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
         overflow-y:auto !important;
-        padding-right:0 !important;
-        -webkit-overflow-scrolling:touch;
       }
 
       #qai-slots {
         width:100% !important;
-        max-width:100% !important;
         min-width:0 !important;
-      }
-
-      #qai-panel .qai-table {
-        width:max-content !important;
-        min-width:100% !important;
-        max-width:none !important;
-        table-layout:auto !important;
-      }
-
-      #qai-panel .qai-table th,
-      #qai-panel .qai-table td {
-        white-space:nowrap !important;
+        max-width:100% !important;
+        overflow:hidden !important;
       }
 
       #qai-panels {
         width:100% !important;
-        max-width:100% !important;
         min-width:0 !important;
+        max-width:100% !important;
         overflow-x:hidden !important;
         overflow-y:auto !important;
-        padding-right:0 !important;
-        -webkit-overflow-scrolling:touch;
+      }
+
+      .qai-desktop-only {
+        display:none !important;
+      }
+
+      .qai-mobile-only {
+        display:block !important;
       }
 
       #qai-panel .qai-det {
         width:100% !important;
-        max-width:100% !important;
         min-width:0 !important;
-        overflow:hidden !important;
-        overflow-wrap:anywhere !important;
-        word-break:break-word !important;
+        max-width:100% !important;
       }
 
       #qai-panel .qai-sum {
         width:100% !important;
+        min-width:0 !important;
         max-width:100% !important;
-        white-space:normal !important;
-        overflow-wrap:anywhere !important;
-        word-break:break-word !important;
-      }
-
-      #qai-panel .qai-det > div {
-        max-width:100% !important;
-        overflow-wrap:anywhere !important;
-        word-break:break-word !important;
-      }
-
-      #qai-panel button {
-        min-height:30px;
-        padding:4px 8px;
       }
     }
   `;
 
   (document.head || document.documentElement).appendChild(qaiStyle);
 
-  // ---------- state
+  // =========================================================
+  // STATE
+  // =========================================================
 
   const S = {
     lastScan: 0,
@@ -563,7 +744,9 @@
     collapsed: false
   };
 
-  // ---------- scanners
+  // =========================================================
+  // SCANNERS
+  // =========================================================
 
   function scanAdsense() {
     const list = Array.from(
@@ -705,7 +888,9 @@
     S.lastScan = Date.now();
   }
 
-  // ---------- UI panel
+  // =========================================================
+  // PANEL
+  // =========================================================
 
   const panel = document.createElement('div');
 
@@ -716,10 +901,10 @@
     'right:10px',
     'top:10px',
     'z-index:2147483646',
-    'background:rgba(245,240,255,0.94)',
+    'background:rgba(245,240,255,.95)',
     'backdrop-filter:blur(10px)',
     '-webkit-backdrop-filter:blur(10px)',
-    'border:1px solid rgba(91,61,138,0.35)',
+    'border:1px solid rgba(91,61,138,.35)',
     'padding:10px',
     'font:12px Arial,sans-serif',
     'color:#221a33',
@@ -731,45 +916,26 @@
   ].join(';');
 
   panel.innerHTML = `
-    <div
-      style="
-        display:flex;
-        gap:8px;
-        align-items:center;
-        flex-wrap:wrap;
-        min-width:0;
-        width:100%;
-      "
-    >
-      <b
-        style="
-          font-size:13px;
-          user-select:none
-        "
-        id="qai-title"
-      >
+    <div id="qai-header">
+
+      <div id="qai-title">
         Debugr
-      </b>
+      </div>
 
-      <button id="qai-r">
-        Refresh
-      </button>
+      <div id="qai-controls">
+        <button id="qai-r">
+          Refresh
+        </button>
 
-      <button id="qai-ph">
-        Show placeholders
-      </button>
+        <button id="qai-ph">
+          Show placeholders
+        </button>
 
-      <button id="qai-min">
-        Minimize
-      </button>
+        <button id="qai-min">
+          Minimize
+        </button>
+      </div>
 
-      <span
-        style="
-          margin-left:auto;
-          color:#4b3a6b
-        "
-        id="qai-meta"
-      ></span>
     </div>
 
     <div id="qai-body">
@@ -790,6 +956,10 @@
 
   document.documentElement.appendChild(panel);
 
+  // =========================================================
+  // COLLAPSED ICON
+  // =========================================================
+
   const icon = document.createElement('div');
 
   icon.id = 'qai-collapsed';
@@ -800,8 +970,8 @@
     'position:fixed',
     'right:10px',
     'top:10px',
-    'width:34px',
-    'height:34px',
+    'width:38px',
+    'height:38px',
     'border-radius:50%',
     'background:#5b3d8a',
     'color:#fff',
@@ -817,47 +987,27 @@
 
   document.documentElement.appendChild(icon);
 
-  // ---------- mobile / visual viewport fit
+  // =========================================================
+  // VIEWPORT FIT
+  // =========================================================
 
   function fitPanelToViewport() {
-    if (!panel) return;
+    const vp = getViewport();
+    const mobile = vp.width <= 700;
 
-    const vv = window.visualViewport;
-
-    const viewportWidth =
-      vv?.width ||
-      window.innerWidth ||
-      document.documentElement.clientWidth ||
-      360;
-
-    const viewportHeight =
-      vv?.height ||
-      window.innerHeight ||
-      document.documentElement.clientHeight ||
-      640;
-
-    const offsetLeft =
-      vv?.offsetLeft || 0;
-
-    const offsetTop =
-      vv?.offsetTop || 0;
-
-    const isMobile =
-      viewportWidth <= 700;
-
-    if (isMobile) {
+    if (mobile) {
       const gap = 6;
 
-      const panelWidth =
+      const width =
         Math.max(
-          200,
-          Math.floor(viewportWidth - gap * 2)
+          220,
+          Math.floor(vp.width - gap * 2)
         );
 
-      const panelHeight =
+      const height =
         Math.max(
-          200,
-          Math.floor(viewportHeight * 0.75)
+          260,
+          Math.floor(vp.height * 0.78)
         );
 
       panel.style.setProperty(
@@ -868,7 +1018,7 @@
 
       panel.style.setProperty(
         'left',
-        `${Math.round(offsetLeft + gap)}px`,
+        `${Math.round(vp.left + gap)}px`,
         'important'
       );
 
@@ -880,43 +1030,37 @@
 
       panel.style.setProperty(
         'top',
-        `${Math.round(offsetTop + gap)}px`,
+        `${Math.round(vp.top + gap)}px`,
         'important'
       );
 
       panel.style.setProperty(
         'width',
-        `${panelWidth}px`,
+        `${width}px`,
         'important'
       );
 
       panel.style.setProperty(
         'min-width',
-        '0',
+        `${width}px`,
         'important'
       );
 
       panel.style.setProperty(
         'max-width',
-        `${panelWidth}px`,
+        `${width}px`,
         'important'
       );
 
       panel.style.setProperty(
         'max-height',
-        `${panelHeight}px`,
+        `${height}px`,
         'important'
       );
 
       panel.style.setProperty(
-        'margin',
-        '0',
-        'important'
-      );
-
-      panel.style.setProperty(
-        'box-sizing',
-        'border-box',
+        'overflow',
+        'hidden',
         'important'
       );
 
@@ -925,26 +1069,8 @@
 
       if (body) {
         body.style.setProperty(
-          'width',
-          '100%',
-          'important'
-        );
-
-        body.style.setProperty(
-          'max-width',
-          '100%',
-          'important'
-        );
-
-        body.style.setProperty(
           'max-height',
-          `${Math.max(120, panelHeight - 52)}px`,
-          'important'
-        );
-
-        body.style.setProperty(
-          'overflow',
-          'hidden',
+          `${Math.max(180, height - 86)}px`,
           'important'
         );
       }
@@ -954,61 +1080,8 @@
 
       if (top) {
         top.style.setProperty(
-          'width',
-          '100%',
-          'important'
-        );
-
-        top.style.setProperty(
-          'max-width',
-          '100%',
-          'important'
-        );
-
-        top.style.setProperty(
           'max-height',
-          `${Math.max(100, Math.floor(panelHeight * 0.38))}px`,
-          'important'
-        );
-
-        top.style.setProperty(
-          'overflow-x',
-          'auto',
-          'important'
-        );
-
-        top.style.setProperty(
-          'overflow-y',
-          'auto',
-          'important'
-        );
-      }
-
-      const panels =
-        document.getElementById('qai-panels');
-
-      if (panels) {
-        panels.style.setProperty(
-          'width',
-          '100%',
-          'important'
-        );
-
-        panels.style.setProperty(
-          'max-width',
-          '100%',
-          'important'
-        );
-
-        panels.style.setProperty(
-          'overflow-x',
-          'hidden',
-          'important'
-        );
-
-        panels.style.setProperty(
-          'overflow-y',
-          'auto',
+          `${Math.max(140, Math.floor(height * 0.42))}px`,
           'important'
         );
       }
@@ -1042,11 +1115,33 @@
 
       panel.style.setProperty(
         'max-height',
-        '52vh',
+        '70vh',
         'important'
       );
     }
+
+    resetPanelScroll();
   }
+
+  function resetPanelScroll() {
+    [
+      panel,
+      document.getElementById('qai-body'),
+      document.getElementById('qai-top'),
+      document.getElementById('qai-slots'),
+      document.getElementById('qai-panels')
+    ].forEach(el => {
+      if (!el) return;
+
+      try {
+        el.scrollLeft = 0;
+      } catch {}
+    });
+  }
+
+  // =========================================================
+  // DATA HELPERS
+  // =========================================================
 
   function visibleAdsense() {
     return S.showPH
@@ -1055,6 +1150,20 @@
           s => s.state !== 'placeholder'
         );
   }
+
+  function makeTargetingText(targeting, maxKeys = 50) {
+    return Object.keys(targeting || {})
+      .slice(0, maxKeys)
+      .map(
+        k =>
+          `${k} = ${(targeting[k] || []).join('|')}`
+      )
+      .join('\n');
+  }
+
+  // =========================================================
+  // HEADER SUMMARY
+  // =========================================================
 
   function renderHead() {
     const Aall = S.adsense;
@@ -1086,30 +1195,30 @@
       hbPageHtml = `
         <span
           style="
-            margin-left:6px;
             color:#176b2c;
             font-weight:600
           "
         >
-          HB library: ${esc(pageEngines.join(' + '))}
+          | HB library:
+          ${esc(pageEngines.join(' + '))}
         </span>
       `;
     }
 
     document.getElementById('qai-head').innerHTML = `
       <div>
-        AdSense slots:
+        AdSense:
         <b>${A.length}</b>
 
         ${
           ph
-            ? ` (+${ph} placeholders hidden)`
+            ? ` (+${ph} hidden)`
             : ''
         }
 
         |
 
-        GAM slots:
+        GAM:
         <b>${G}</b>
 
         |
@@ -1123,10 +1232,10 @@
       <div
         style="
           color:#4b3a6b;
-          font-size:11px
+          font-size:10px;
+          margin-top:2px
         "
       >
-        Last scan:
         ${new Date(S.lastScan).toLocaleTimeString()}
       </div>
     `;
@@ -1137,19 +1246,17 @@
         : 'Show placeholders';
   }
 
-  function renderTables() {
-    const wrap =
-      document.getElementById('qai-slots');
+  // =========================================================
+  // DESKTOP TABLES
+  // =========================================================
 
-    const A =
-      visibleAdsense();
+  function renderDesktopTables() {
+    const A = visibleAdsense();
+    const base = A.length;
 
-    const base =
-      A.length;
-
-    let html = '';
-
-    // ---------- AdSense table
+    let html = `
+      <div class="qai-desktop-only">
+    `;
 
     if (A.length) {
       html += `
@@ -1161,23 +1268,20 @@
         >
           AdSense slot details
         </div>
-      `;
 
-      html += `
         <table class="qai-table">
           <thead>
             <tr>
-              <th style="text-align:left;padding:4px 6px">#</th>
-              <th style="text-align:left;padding:4px 6px">Publisher ID</th>
-              <th style="text-align:left;padding:4px 6px">Slot ID</th>
-              <th style="text-align:left;padding:4px 6px">Declared size</th>
-              <th style="text-align:left;padding:4px 6px">Computed size</th>
-              <th style="text-align:left;padding:4px 6px">Format</th>
-              <th style="text-align:left;padding:4px 6px">Element ID</th>
-              <th style="text-align:left;padding:4px 6px">State</th>
+              <th>#</th>
+              <th>Publisher ID</th>
+              <th>Slot ID</th>
+              <th>Declared</th>
+              <th>Computed</th>
+              <th>Format</th>
+              <th>Element ID</th>
+              <th>State</th>
             </tr>
           </thead>
-
           <tbody>
       `;
 
@@ -1190,40 +1294,18 @@
 
         html += `
           <tr>
-            <td style="padding:3px 6px">
-              ${i + 1}
-            </td>
+            <td>${i + 1}</td>
+            <td>${esc(s.client)}</td>
+            <td>${esc(s.slot)}</td>
+            <td>${esc(s.declared)}</td>
 
-            <td style="padding:3px 6px">
-              ${esc(s.client)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(s.slot)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(s.declared)}
-            </td>
-
-            <td
-              class="${mismatch ? 'qai-mismatch' : ''}"
-              style="padding:3px 6px"
-            >
+            <td class="${mismatch ? 'qai-mismatch' : ''}">
               ${esc(s.computed)}
             </td>
 
-            <td style="padding:3px 6px">
-              ${esc(s.format)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(s.elementId)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(s.state)}
-            </td>
+            <td>${esc(s.format)}</td>
+            <td>${esc(s.elementId)}</td>
+            <td>${esc(s.state)}</td>
           </tr>
         `;
       });
@@ -1232,20 +1314,7 @@
           </tbody>
         </table>
       `;
-    } else {
-      html += `
-        <div
-          style="
-            margin-top:6px;
-            color:#6a5aa4
-          "
-        >
-          AdSense slots: not detected
-        </div>
-      `;
     }
-
-    // ---------- GAM table
 
     if (S.gam.length) {
       html += `
@@ -1257,22 +1326,18 @@
         >
           GAM slot details
         </div>
-      `;
 
-      html += `
         <table class="qai-table">
-
           <thead>
             <tr>
-              <th style="text-align:left;padding:4px 6px">#</th>
-              <th style="text-align:left;padding:4px 6px">HB</th>
-              <th style="text-align:left;padding:4px 6px">AdUnitPath</th>
-              <th style="text-align:left;padding:4px 6px">SlotElementId</th>
-              <th style="text-align:left;padding:4px 6px">Sizes</th>
-              <th style="text-align:left;padding:4px 6px">Targeting</th>
+              <th>#</th>
+              <th>HB</th>
+              <th>AdUnitPath</th>
+              <th>SlotElementId</th>
+              <th>Sizes</th>
+              <th>Targeting</th>
             </tr>
           </thead>
-
           <tbody>
       `;
 
@@ -1295,39 +1360,12 @@
 
         html += `
           <tr>
-            <td
-              style="
-                padding:3px 6px;
-                white-space:nowrap
-              "
-            >
-              ${num}
-            </td>
-
-            <td
-              style="
-                padding:3px 6px;
-                white-space:nowrap
-              "
-            >
-              ${hbBadgeHTML(g.hb)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(g.adUnitPath)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(g.slotElementId)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${esc(g.sizesStr)}
-            </td>
-
-            <td style="padding:3px 6px">
-              ${tgt}
-            </td>
+            <td>${num}</td>
+            <td>${hbBadgeHTML(g.hb)}</td>
+            <td>${esc(g.adUnitPath)}</td>
+            <td>${esc(g.slotElementId)}</td>
+            <td>${esc(g.sizesStr)}</td>
+            <td>${tgt}</td>
           </tr>
         `;
       });
@@ -1338,14 +1376,280 @@
       `;
     }
 
-    wrap.innerHTML = html;
+    html += `
+      </div>
+    `;
+
+    return html;
   }
+
+  // =========================================================
+  // MOBILE CARDS
+  // =========================================================
+
+  function renderMobileCards() {
+    const A = visibleAdsense();
+    const base = A.length;
+
+    let html = `
+      <div class="qai-mobile-only">
+        <div class="qai-mobile-list">
+    `;
+
+    A.forEach((s, i) => {
+      const num = i + 1;
+
+      html += `
+        <div class="qai-mobile-card">
+
+          <div class="qai-mobile-card-head">
+            <span class="qai-mobile-num">
+              #${num}
+            </span>
+
+            <span class="qai-mobile-type">
+              AdSense
+            </span>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Publisher
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.client || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Slot
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.slot || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Size
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.declared || '-')}
+              →
+              ${esc(s.computed || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Format
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.format || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Element
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.elementId || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              State
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(s.state)}
+            </div>
+          </div>
+
+          <div class="qai-mobile-actions">
+            <button
+              class="qai-hl"
+              data-kind="adsense"
+              data-el="${esc(s.elementId)}"
+              data-idx="${s.domIndex}"
+            >
+              Highlight
+            </button>
+          </div>
+
+        </div>
+      `;
+    });
+
+    S.gam.forEach((g, idx) => {
+      const num =
+        base +
+        idx +
+        1;
+
+      const targetingText =
+        makeTargetingText(
+          g.targeting,
+          50
+        );
+
+      html += `
+        <div class="qai-mobile-card">
+
+          <div class="qai-mobile-card-head">
+            <span class="qai-mobile-num">
+              #${num}
+            </span>
+
+            <span class="qai-mobile-type">
+              GAM
+            </span>
+
+            ${hbBadgeHTML(g.hb)}
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Ad unit
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(g.adUnitPath || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Element
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(g.slotElementId || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              Sizes
+            </div>
+
+            <div class="qai-mobile-value">
+              ${esc(g.sizesStr || '-')}
+            </div>
+          </div>
+
+          <div class="qai-mobile-row">
+            <div class="qai-mobile-label">
+              HB
+            </div>
+
+            <div class="qai-mobile-value">
+              ${
+                g.hb?.active
+                  ? `YES — ${esc(
+                      g.hb.engines?.join(' + ') || 'detected'
+                    )}`
+                  : 'NO'
+              }
+            </div>
+          </div>
+
+          <div class="qai-mobile-actions">
+            <button
+              class="qai-hl"
+              data-kind="gam"
+              data-el="${esc(g.slotElementId)}"
+            >
+              Highlight
+            </button>
+          </div>
+
+          ${
+            targetingText
+              ? `
+                <details style="margin-top:8px">
+                  <summary
+                    style="
+                      cursor:pointer;
+                      font-size:11px;
+                      font-weight:600
+                    "
+                  >
+                    Targeting
+                  </summary>
+
+                  <div class="qai-mobile-targeting">
+${esc(targetingText)}
+                  </div>
+                </details>
+              `
+              : ''
+          }
+
+        </div>
+      `;
+    });
+
+    if (!A.length && !S.gam.length) {
+      html += `
+        <div
+          style="
+            padding:10px;
+            color:#6a5aa4
+          "
+        >
+          No ad slots detected.
+        </div>
+      `;
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    return html;
+  }
+
+  // =========================================================
+  // MAIN SLOT LIST
+  // =========================================================
+
+  function renderTables() {
+    const wrap =
+      document.getElementById('qai-slots');
+
+    wrap.innerHTML =
+      renderDesktopTables() +
+      renderMobileCards();
+
+    attachHighlightHandlers(wrap);
+  }
+
+  // =========================================================
+  // DESKTOP DETAIL PANELS
+  // =========================================================
 
   function renderPanels() {
     const box =
       document.getElementById('qai-panels');
 
     box.innerHTML = '';
+
+    if (isMobileViewport()) {
+      box.style.display = 'none';
+      return;
+    }
+
+    box.style.display = 'block';
 
     const A =
       visibleAdsense();
@@ -1379,8 +1683,6 @@
       return b;
     };
 
-    // ---------- AdSense panels
-
     A.forEach((s, i) => {
       const num =
         i + 1;
@@ -1411,7 +1713,6 @@
           data-el="${esc(s.elementId)}"
           data-idx="${s.domIndex}"
           class="qai-hl"
-          style="margin-left:8px"
         >
           Highlight
         </button>
@@ -1465,8 +1766,6 @@
       box.appendChild(det);
     });
 
-    // ---------- GAM panels
-
     S.gam.forEach((g, idx) => {
       const num =
         base +
@@ -1500,7 +1799,6 @@
           data-kind="gam"
           data-el="${esc(g.slotElementId)}"
           class="qai-hl"
-          style="margin-left:8px"
         >
           Highlight
         </button>
@@ -1513,13 +1811,10 @@
         'margin-top:6px;font-size:11px;white-space:pre-wrap';
 
       const tgt =
-        Object.keys(g.targeting || {})
-          .slice(0, 50)
-          .map(
-            k =>
-              `${k} = ${(g.targeting[k] || []).join('|')}`
-          )
-          .join('\n');
+        makeTargetingText(
+          g.targeting,
+          50
+        );
 
       const hbKeys =
         g.hb?.keys?.length
@@ -1581,65 +1876,92 @@ ${esc(tgt || '(none)')}
       box.appendChild(det);
     });
 
-    // ---------- Highlight handlers
-
-    box.querySelectorAll('.qai-hl').forEach(btn => {
-      btn.onclick = e => {
-        e.preventDefault();
-
-        const kind =
-          btn.getAttribute('data-kind');
-
-        const elId =
-          btn.getAttribute('data-el');
-
-        let el =
-          elId
-            ? document.getElementById(elId)
-            : null;
-
-        if (!el && kind === 'adsense') {
-          const idx =
-            parseInt(
-              btn.getAttribute('data-idx') || '-1',
-              10
-            );
-
-          const list =
-            document.querySelectorAll(
-              'ins.adsbygoogle'
-            );
-
-          if (
-            idx >= 0 &&
-            list[idx]
-          ) {
-            el =
-              list[idx];
-          }
-        }
-
-        if (!el) {
-          return;
-        }
-
-        el.scrollIntoView({
-          behavior:'smooth',
-          block:'center'
-        });
-
-        const old =
-          el.style.outline;
-
-        el.style.outline =
-          '3px solid #8a2be2';
-
-        setTimeout(() => {
-          el.style.outline = old;
-        }, 1500);
-      };
-    });
+    attachHighlightHandlers(box);
   }
+
+  // =========================================================
+  // HIGHLIGHT
+  // =========================================================
+
+  function attachHighlightHandlers(root) {
+    root
+      .querySelectorAll('.qai-hl')
+      .forEach(btn => {
+        btn.onclick = e => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const kind =
+            btn.getAttribute('data-kind');
+
+          const elId =
+            btn.getAttribute('data-el');
+
+          let el =
+            elId
+              ? document.getElementById(elId)
+              : null;
+
+          if (!el && kind === 'adsense') {
+            const idx =
+              parseInt(
+                btn.getAttribute('data-idx') || '-1',
+                10
+              );
+
+            const list =
+              document.querySelectorAll(
+                'ins.adsbygoogle'
+              );
+
+            if (
+              idx >= 0 &&
+              list[idx]
+            ) {
+              el =
+                list[idx];
+            }
+          }
+
+          if (!el) {
+            return;
+          }
+
+          collapse();
+
+          setTimeout(() => {
+            el.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+
+            const oldOutline =
+              el.style.outline;
+
+            const oldOutlineOffset =
+              el.style.outlineOffset;
+
+            el.style.outline =
+              '3px solid #8a2be2';
+
+            el.style.outlineOffset =
+              '2px';
+
+            setTimeout(() => {
+              el.style.outline =
+                oldOutline;
+
+              el.style.outlineOffset =
+                oldOutlineOffset;
+            }, 1800);
+          }, 100);
+        };
+      });
+  }
+
+  // =========================================================
+  // OVERLAYS
+  // =========================================================
 
   function placeBadgesAndOverlays() {
     document
@@ -1652,8 +1974,6 @@ ${esc(tgt || '(none)')}
 
     const A =
       visibleAdsense();
-
-    // ---------- AdSense overlays
 
     A.forEach((s, i) => {
       const num =
@@ -1684,8 +2004,6 @@ ${esc(tgt || '(none)')}
         lines
       );
     });
-
-    // ---------- GAM overlays
 
     S.gam.forEach((g, idx) => {
       const num =
@@ -1730,6 +2048,10 @@ ${esc(tgt || '(none)')}
     });
   }
 
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   function renderAll() {
     if (S.collapsed) {
       return;
@@ -1740,60 +2062,70 @@ ${esc(tgt || '(none)')}
     renderPanels();
     placeBadgesAndOverlays();
     fitPanelToViewport();
+
+    requestAnimationFrame(() => {
+      resetPanelScroll();
+
+      requestAnimationFrame(() => {
+        resetPanelScroll();
+      });
+    });
   }
 
-  // ---------- collapse / expand
-
-  function saveCollapsed() {
-    try {
-      localStorage.setItem(
-        '__qai_collapsed',
-        '1'
-      );
-    } catch {}
-  }
-
-  function saveExpanded() {
-    try {
-      localStorage.removeItem(
-        '__qai_collapsed'
-      );
-    } catch {}
-  }
+  // =========================================================
+  // COLLAPSE / EXPAND
+  // =========================================================
 
   function collapse() {
     S.collapsed = true;
 
-    panel.style.display =
-      'none';
+    panel.style.setProperty(
+      'display',
+      'none',
+      'important'
+    );
 
-    icon.style.display =
-      'flex';
-
-    saveCollapsed();
+    icon.style.setProperty(
+      'display',
+      'flex',
+      'important'
+    );
   }
 
   function expand() {
     S.collapsed = false;
 
-    icon.style.display =
-      'none';
+    icon.style.setProperty(
+      'display',
+      'none',
+      'important'
+    );
 
-    panel.style.display =
-      'block';
+    panel.style.setProperty(
+      'display',
+      'block',
+      'important'
+    );
 
-    panel.style.visibility =
-      'visible';
+    panel.style.setProperty(
+      'visibility',
+      'visible',
+      'important'
+    );
 
-    panel.style.opacity =
-      '1';
-
-    saveExpanded();
+    panel.style.setProperty(
+      'opacity',
+      '1',
+      'important'
+    );
 
     rescan();
     renderAll();
-    fitPanelToViewport();
   }
+
+  // =========================================================
+  // BUTTONS
+  // =========================================================
 
   document.getElementById('qai-r').onclick = () => {
     rescan();
@@ -1816,6 +2148,10 @@ ${esc(tgt || '(none)')}
   icon.onclick =
     expand;
 
+  // =========================================================
+  // INIT
+  // =========================================================
+
   function init() {
     S.collapsed = false;
 
@@ -1825,49 +2161,73 @@ ${esc(tgt || '(none)')}
       );
     } catch {}
 
-    icon.style.display =
-      'none';
+    icon.style.setProperty(
+      'display',
+      'none',
+      'important'
+    );
 
-    panel.style.display =
-      'block';
+    panel.style.setProperty(
+      'display',
+      'block',
+      'important'
+    );
 
-    panel.style.visibility =
-      'visible';
+    panel.style.setProperty(
+      'visibility',
+      'visible',
+      'important'
+    );
 
-    panel.style.opacity =
-      '1';
+    panel.style.setProperty(
+      'opacity',
+      '1',
+      'important'
+    );
 
     fitPanelToViewport();
 
     rescan();
     renderAll();
 
+    const rerenderForViewport = () => {
+      if (S.collapsed) {
+        return;
+      }
+
+      fitPanelToViewport();
+      renderTables();
+      renderPanels();
+
+      requestAnimationFrame(
+        resetPanelScroll
+      );
+    };
+
     window.addEventListener(
       'resize',
-      () => {
-        fitPanelToViewport();
-      }
+      rerenderForViewport
     );
 
     window.addEventListener(
       'orientationchange',
       () => {
-        setTimeout(() => {
-          fitPanelToViewport();
-        }, 100);
+        setTimeout(
+          rerenderForViewport,
+          150
+        );
 
-        setTimeout(() => {
-          fitPanelToViewport();
-        }, 500);
+        setTimeout(
+          rerenderForViewport,
+          600
+        );
       }
     );
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener(
         'resize',
-        () => {
-          fitPanelToViewport();
-        }
+        rerenderForViewport
       );
 
       window.visualViewport.addEventListener(
