@@ -254,7 +254,7 @@
     `;
   }
 
-  // ---------- slot badge + overlay on physical slot
+  // ---------- slot badge + overlay
 
   function addBadge(el, num) {
     if (!el) return;
@@ -356,7 +356,7 @@
   qaiStyle.textContent = `
     #qai-panel,
     #qai-panel * {
-      box-sizing: border-box;
+      box-sizing:border-box !important;
     }
 
     #qai-panel {
@@ -372,6 +372,7 @@
       gap:8px;
       max-height:calc(52vh - 44px);
       min-width:0;
+      width:100%;
     }
 
     #qai-top {
@@ -380,11 +381,13 @@
       overflow:auto;
       padding-right:4px;
       min-width:0;
+      width:100%;
       -webkit-overflow-scrolling:touch;
     }
 
     #qai-slots {
       min-width:0;
+      width:100%;
     }
 
     #qai-panels {
@@ -393,6 +396,7 @@
       max-height:none !important;
       padding-right:4px;
       min-width:0;
+      width:100%;
       -webkit-overflow-scrolling:touch;
     }
 
@@ -432,6 +436,8 @@
       backdrop-filter:blur(6px);
       -webkit-backdrop-filter:blur(6px);
       min-width:0;
+      width:100%;
+      max-width:100%;
     }
 
     #qai-panel .qai-sum {
@@ -440,6 +446,9 @@
       background:rgba(233,221,255,0.22);
       padding:4px 6px;
       border-radius:6px;
+      max-width:100%;
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
     #qai-panel .qai-mismatch {
@@ -452,30 +461,12 @@
 
     @media (max-width:700px) {
       #qai-panel {
-        position:fixed !important;
-        left:6px !important;
-        right:auto !important;
-        top:6px !important;
-
-        width:calc(100dvw - 12px) !important;
-        max-width:calc(100dvw - 12px) !important;
-
-        max-height:75dvh !important;
-
         margin:0 !important;
-        padding:8px !important;
-
         overflow:hidden !important;
-
         border-radius:10px !important;
       }
 
       #qai-body {
-        width:100% !important;
-        max-width:100% !important;
-
-        max-height:calc(75dvh - 52px) !important;
-
         overflow:hidden !important;
         min-width:0 !important;
       }
@@ -483,7 +474,6 @@
       #qai-head {
         width:100% !important;
         max-width:100% !important;
-
         overflow-wrap:anywhere !important;
         word-break:break-word !important;
       }
@@ -491,16 +481,10 @@
       #qai-top {
         width:100% !important;
         max-width:100% !important;
-
-        max-height:28dvh !important;
-
+        min-width:0 !important;
         overflow-x:auto !important;
         overflow-y:auto !important;
-
         padding-right:0 !important;
-
-        min-width:0 !important;
-
         -webkit-overflow-scrolling:touch;
       }
 
@@ -514,7 +498,6 @@
         width:max-content !important;
         min-width:100% !important;
         max-width:none !important;
-
         table-layout:auto !important;
       }
 
@@ -526,25 +509,18 @@
       #qai-panels {
         width:100% !important;
         max-width:100% !important;
-
+        min-width:0 !important;
         overflow-x:hidden !important;
         overflow-y:auto !important;
-
         padding-right:0 !important;
-
-        min-width:0 !important;
-
         -webkit-overflow-scrolling:touch;
       }
 
       #qai-panel .qai-det {
         width:100% !important;
         max-width:100% !important;
-
         min-width:0 !important;
-
         overflow:hidden !important;
-
         overflow-wrap:anywhere !important;
         word-break:break-word !important;
       }
@@ -552,9 +528,7 @@
       #qai-panel .qai-sum {
         width:100% !important;
         max-width:100% !important;
-
         white-space:normal !important;
-
         overflow-wrap:anywhere !important;
         word-break:break-word !important;
       }
@@ -577,16 +551,16 @@
   // ---------- state
 
   const S = {
-    lastScan:0,
-    showPH:false,
-    adsense:[],
-    gam:[],
-    hbPage:{
-      prebid:false,
-      amazon:false,
-      any:false
+    lastScan: 0,
+    showPH: false,
+    adsense: [],
+    gam: [],
+    hbPage: {
+      prebid: false,
+      amazon: false,
+      any: false
     },
-    collapsed:false
+    collapsed: false
   };
 
   // ---------- scanners
@@ -631,14 +605,14 @@
         !isPlaceholder;
 
       return {
-        elementId:el.id,
-        domIndex:i,
+        elementId: el.id,
+        domIndex: i,
         client,
         slot,
-        declared:ds,
-        computed:cs,
+        declared: ds,
+        computed: cs,
         format,
-        state:isPlaceholder
+        state: isPlaceholder
           ? 'placeholder'
           : (
               isUninitialized
@@ -752,7 +726,8 @@
     'box-shadow:0 6px 18px rgba(0,0,0,.25)',
     'border-radius:10px',
     'visibility:visible',
-    'opacity:1'
+    'opacity:1',
+    'box-sizing:border-box'
   ].join(';');
 
   panel.innerHTML = `
@@ -763,6 +738,7 @@
         align-items:center;
         flex-wrap:wrap;
         min-width:0;
+        width:100%;
       "
     >
       <b
@@ -840,6 +816,237 @@
   ].join(';');
 
   document.documentElement.appendChild(icon);
+
+  // ---------- mobile / visual viewport fit
+
+  function fitPanelToViewport() {
+    if (!panel) return;
+
+    const vv = window.visualViewport;
+
+    const viewportWidth =
+      vv?.width ||
+      window.innerWidth ||
+      document.documentElement.clientWidth ||
+      360;
+
+    const viewportHeight =
+      vv?.height ||
+      window.innerHeight ||
+      document.documentElement.clientHeight ||
+      640;
+
+    const offsetLeft =
+      vv?.offsetLeft || 0;
+
+    const offsetTop =
+      vv?.offsetTop || 0;
+
+    const isMobile =
+      viewportWidth <= 700;
+
+    if (isMobile) {
+      const gap = 6;
+
+      const panelWidth =
+        Math.max(
+          200,
+          Math.floor(viewportWidth - gap * 2)
+        );
+
+      const panelHeight =
+        Math.max(
+          200,
+          Math.floor(viewportHeight * 0.75)
+        );
+
+      panel.style.setProperty(
+        'position',
+        'fixed',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'left',
+        `${Math.round(offsetLeft + gap)}px`,
+        'important'
+      );
+
+      panel.style.setProperty(
+        'right',
+        'auto',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'top',
+        `${Math.round(offsetTop + gap)}px`,
+        'important'
+      );
+
+      panel.style.setProperty(
+        'width',
+        `${panelWidth}px`,
+        'important'
+      );
+
+      panel.style.setProperty(
+        'min-width',
+        '0',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'max-width',
+        `${panelWidth}px`,
+        'important'
+      );
+
+      panel.style.setProperty(
+        'max-height',
+        `${panelHeight}px`,
+        'important'
+      );
+
+      panel.style.setProperty(
+        'margin',
+        '0',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'box-sizing',
+        'border-box',
+        'important'
+      );
+
+      const body =
+        document.getElementById('qai-body');
+
+      if (body) {
+        body.style.setProperty(
+          'width',
+          '100%',
+          'important'
+        );
+
+        body.style.setProperty(
+          'max-width',
+          '100%',
+          'important'
+        );
+
+        body.style.setProperty(
+          'max-height',
+          `${Math.max(120, panelHeight - 52)}px`,
+          'important'
+        );
+
+        body.style.setProperty(
+          'overflow',
+          'hidden',
+          'important'
+        );
+      }
+
+      const top =
+        document.getElementById('qai-top');
+
+      if (top) {
+        top.style.setProperty(
+          'width',
+          '100%',
+          'important'
+        );
+
+        top.style.setProperty(
+          'max-width',
+          '100%',
+          'important'
+        );
+
+        top.style.setProperty(
+          'max-height',
+          `${Math.max(100, Math.floor(panelHeight * 0.38))}px`,
+          'important'
+        );
+
+        top.style.setProperty(
+          'overflow-x',
+          'auto',
+          'important'
+        );
+
+        top.style.setProperty(
+          'overflow-y',
+          'auto',
+          'important'
+        );
+      }
+
+      const panels =
+        document.getElementById('qai-panels');
+
+      if (panels) {
+        panels.style.setProperty(
+          'width',
+          '100%',
+          'important'
+        );
+
+        panels.style.setProperty(
+          'max-width',
+          '100%',
+          'important'
+        );
+
+        panels.style.setProperty(
+          'overflow-x',
+          'hidden',
+          'important'
+        );
+
+        panels.style.setProperty(
+          'overflow-y',
+          'auto',
+          'important'
+        );
+      }
+    } else {
+      panel.style.removeProperty('left');
+      panel.style.removeProperty('min-width');
+
+      panel.style.setProperty(
+        'right',
+        '10px',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'top',
+        '10px',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'width',
+        '560px',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'max-width',
+        'calc(100vw - 20px)',
+        'important'
+      );
+
+      panel.style.setProperty(
+        'max-height',
+        '52vh',
+        'important'
+      );
+    }
+  }
 
   function visibleAdsense() {
     return S.showPH
@@ -1172,7 +1379,7 @@
       return b;
     };
 
-    // ---------- AdSense detail panels
+    // ---------- AdSense panels
 
     A.forEach((s, i) => {
       const num =
@@ -1258,7 +1465,7 @@
       box.appendChild(det);
     });
 
-    // ---------- GAM detail panels
+    // ---------- GAM panels
 
     S.gam.forEach((g, idx) => {
       const num =
@@ -1532,6 +1739,7 @@ ${esc(tgt || '(none)')}
     renderTables();
     renderPanels();
     placeBadgesAndOverlays();
+    fitPanelToViewport();
   }
 
   // ---------- collapse / expand
@@ -1584,6 +1792,7 @@ ${esc(tgt || '(none)')}
 
     rescan();
     renderAll();
+    fitPanelToViewport();
   }
 
   document.getElementById('qai-r').onclick = () => {
@@ -1628,8 +1837,46 @@ ${esc(tgt || '(none)')}
     panel.style.opacity =
       '1';
 
+    fitPanelToViewport();
+
     rescan();
     renderAll();
+
+    window.addEventListener(
+      'resize',
+      () => {
+        fitPanelToViewport();
+      }
+    );
+
+    window.addEventListener(
+      'orientationchange',
+      () => {
+        setTimeout(() => {
+          fitPanelToViewport();
+        }, 100);
+
+        setTimeout(() => {
+          fitPanelToViewport();
+        }, 500);
+      }
+    );
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener(
+        'resize',
+        () => {
+          fitPanelToViewport();
+        }
+      );
+
+      window.visualViewport.addEventListener(
+        'scroll',
+        () => {
+          fitPanelToViewport();
+        }
+      );
+    }
 
     window.addEventListener(
       'load',
