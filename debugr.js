@@ -224,6 +224,159 @@
     };
   }
 
+  function normalizeBestBids(raw) {
+    if (!raw) {
+      return [];
+    }
+
+    if (Array.isArray(raw)) {
+      return raw.filter(Boolean);
+    }
+
+    if (typeof raw === 'object') {
+      const out = [];
+
+      Object.keys(raw).forEach(key => {
+        const value = raw[key];
+
+        if (Array.isArray(value)) {
+          value.forEach(bid => {
+            if (bid && typeof bid === 'object') {
+              out.push(
+                bid.adUnitCode
+                  ? bid
+                  : { ...bid, adUnitCode: key }
+              );
+            }
+          });
+          return;
+        }
+
+        if (value?.bids && Array.isArray(value.bids)) {
+          value.bids.forEach(bid => {
+            if (bid && typeof bid === 'object') {
+              out.push(
+                bid.adUnitCode
+                  ? bid
+                  : { ...bid, adUnitCode: key }
+              );
+            }
+          });
+          return;
+        }
+
+        if (value && typeof value === 'object') {
+          out.push(
+            value.adUnitCode
+              ? value
+              : { ...value, adUnitCode: key }
+          );
+        }
+      });
+
+      return out;
+    }
+
+    return [];
+  }
+
+  function scanPrebidBestBids() {
+    const state = {
+      available: false,
+      bids: [],
+      error: ''
+    };
+
+    try {
+      if (
+        !window.pbjs ||
+        typeof window.pbjs.getBestBids !== 'function'
+      ) {
+        return state;
+      }
+
+      state.available = true;
+
+      const raw =
+        window.pbjs.getBestBids();
+
+      const bids =
+        normalizeBestBids(raw);
+
+      state.bids =
+        bids
+          .map(bid => {
+            const width =
+              bid.width ??
+              bid.w ??
+              '';
+
+            const height =
+              bid.height ??
+              bid.h ??
+              '';
+
+            const size =
+              bid.size ||
+              (width && height
+                ? `${width}x${height}`
+                : '');
+
+            return {
+              adUnitCode:
+                bid.adUnitCode ||
+                bid.adunitCode ||
+                '',
+
+              bidder:
+                bid.bidder ||
+                bid.bidderCode ||
+                '',
+
+              cpm:
+                Number.isFinite(Number(bid.cpm))
+                  ? Number(bid.cpm)
+                  : null,
+
+              currency:
+                bid.currency ||
+                '',
+
+              size,
+
+              timeToRespond:
+                Number.isFinite(Number(bid.timeToRespond))
+                  ? Number(bid.timeToRespond)
+                  : null,
+
+              dealId:
+                bid.dealId ||
+                '',
+
+              adId:
+                bid.adId ||
+                '',
+
+              auctionId:
+                bid.auctionId ||
+                ''
+            };
+          })
+          .filter(bid =>
+            bid.adUnitCode ||
+            bid.bidder ||
+            bid.cpm !== null
+          );
+    } catch (err) {
+      state.available = true;
+      state.error =
+        err?.message ||
+        String(err);
+    }
+
+    return state;
+  }
+
   function hbBadgeHTML(hb) {
     if (hb?.active) {
       const label =
@@ -566,6 +719,12 @@
       any: false
     },
 
+    prebidBest: {
+      available: false,
+      bids: [],
+      error: ''
+    },
+
     collapsed: false
   };
 
@@ -817,6 +976,9 @@
     S.hbPage =
       detectPageHB();
 
+    S.prebidBest =
+      scanPrebidBestBids();
+
     S.lastScan =
       Date.now();
   }
@@ -1059,6 +1221,15 @@
       `;
     }
 
+    const bestBidsHtml =
+      S.hbPage.prebid
+        ? (
+            S.prebidBest.available
+              ? ` | Best bids: <b>${S.prebidBest.bids.length}</b>`
+              : ' | Best bids API: <b>unavailable</b>'
+          )
+        : '';
+
     document
       .getElementById(
         'qai-head'
@@ -1102,6 +1273,8 @@
           <b>${hbSlots}/${visibleG.length}</b>
 
           ${hbPageHtml}
+
+          ${bestBidsHtml}
         </div>
 
         <div
@@ -1493,6 +1666,125 @@
           with a matching DIV.
         </div>
       `;
+    }
+
+    // ---------------------------------------------------------
+    // PREBID BEST BIDS
+    // ---------------------------------------------------------
+
+    if (S.hbPage.prebid) {
+      html += `
+        <div
+          style="
+            margin-top:10px;
+            font-weight:600;
+          "
+        >
+          Prebid best bids
+        </div>
+      `;
+
+      if (!S.prebidBest.available) {
+        html += `
+          <div
+            style="
+              margin-top:4px;
+              color:#6a5aa4;
+              font-size:11px;
+            "
+          >
+            pbjs.getBestBids() is not available on this page.
+          </div>
+        `;
+      } else if (S.prebidBest.error) {
+        html += `
+          <div
+            style="
+              margin-top:4px;
+              color:#a31d1d;
+              font-size:11px;
+            "
+          >
+            getBestBids error:
+            ${esc(S.prebidBest.error)}
+          </div>
+        `;
+      } else if (!S.prebidBest.bids.length) {
+        html += `
+          <div
+            style="
+              margin-top:4px;
+              color:#6a5aa4;
+              font-size:11px;
+            "
+          >
+            API available, but no best bids are currently returned.
+          </div>
+        `;
+      } else {
+        html += `
+          <table class="qai-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:4px 6px">Ad unit</th>
+                <th style="text-align:left;padding:4px 6px">Bidder</th>
+                <th style="text-align:left;padding:4px 6px">CPM</th>
+                <th style="text-align:left;padding:4px 6px">Currency</th>
+                <th style="text-align:left;padding:4px 6px">Size</th>
+                <th style="text-align:left;padding:4px 6px">Response</th>
+                <th style="text-align:left;padding:4px 6px">Deal</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        S.prebidBest.bids.forEach(bid => {
+          html += `
+            <tr>
+              <td style="padding:3px 6px">
+                ${esc(bid.adUnitCode || '-')}
+              </td>
+
+              <td style="padding:3px 6px">
+                ${esc(bid.bidder || '-')}
+              </td>
+
+              <td style="padding:3px 6px;white-space:nowrap">
+                ${
+                  bid.cpm === null
+                    ? '-'
+                    : esc(bid.cpm.toFixed(4))
+                }
+              </td>
+
+              <td style="padding:3px 6px;white-space:nowrap">
+                ${esc(bid.currency || '-')}
+              </td>
+
+              <td style="padding:3px 6px;white-space:nowrap">
+                ${esc(bid.size || '-')}
+              </td>
+
+              <td style="padding:3px 6px;white-space:nowrap">
+                ${
+                  bid.timeToRespond === null
+                    ? '-'
+                    : `${esc(bid.timeToRespond)} ms`
+                }
+              </td>
+
+              <td style="padding:3px 6px">
+                ${esc(bid.dealId || '-')}
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
     }
 
     wrap.innerHTML =
