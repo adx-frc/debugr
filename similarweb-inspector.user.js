@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Similarweb Inspector
 // @namespace    https://github.com/adx-frc
-// @version      2.0.0
+// @version      2.1.0
 // @description  Similarweb traffic inspector with API and public-web fallback
 // @author       AdX
 // @match        http://*/*
@@ -9,6 +9,9 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_addValueChangeListener
+// @grant        GM_removeValueChangeListener
+// @grant        GM_openInTab
 // @connect      data.similarweb.com
 // @connect      www.similarweb.com
 // @run-at       document-idle
@@ -797,29 +800,184 @@
     return out;
   }
 
-  async function fetchWebFallback(domain) {
-    const url = "https://www.similarweb.com/website/" + encodeURIComponent(domain) + "/";
-    const response = await gmRequest(url);
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error("Similarweb web fallback HTTP " + response.status);
+  async function waitForSimilarwebRendered(domain) {
+    const deadline = Date.now() + 18000;
+
+    while (Date.now() < deadline) {
+      const text = String(document.body?.innerText || "");
+
+      if (
+        text.includes(domain) &&
+        (
+          text.includes("Global Rank") ||
+          text.includes("Traffic & Engagement Analysis") ||
+          text.includes("Total Visits Last 3 Months")
+        )
+      ) {
+        await sleep(1200);
+        return;
+      }
+
+      await sleep(500);
     }
+  }
 
-    const doc = new DOMParser().parseFromString(response.text, "text/html");
-    const data = extractApiLike(parseJsonScripts(doc), domain);
-    mergeObject(data, parseVisibleHtml(doc, domain));
+  async function collectRenderedSimilarweb(domain, requestId) {
+    const resultKey = "__sw_rendered_result__:" + requestId;
 
     try {
-      const aiUrl = "https://www.similarweb.com/ai-traffic/" + encodeURIComponent(domain) + "/";
-      const aiResponse = await gmRequest(aiUrl);
-      if (aiResponse.status >= 200 && aiResponse.status < 300) {
-        const aiDoc = new DOMParser().parseFromString(aiResponse.text, "text/html");
-        const aiData = extractApiLike(parseJsonScripts(aiDoc), domain);
-        mergeObject(data, aiData);
-      }
-    } catch {}
+      await waitForSimilarwebRendered(domain);
 
-    return data;
+      const data = extractApiLike(parseJsonScripts(document), domain);
+      mergeObject(data, parseVisibleHtml(document, domain));
+
+      const diagnostic = {
+        href: location.href,
+        title: document.title,
+        textLength: String(document.body?.innerText || "").length,
+        scriptCount: document.scripts?.length || 0,
+        hasGlobalRank: !!data?.GlobalRank?.Rank,
+        hasVisits: !!data?.Engagments?.Visits,
+        monthlyVisits: Object.keys(data?.EstimatedMonthlyVisits || {}).length,
+        countryCount: Array.isArray(data?.TopCountryShares)
+          ? data.TopCountryShares.length
+          : 0,
+        keywordCount: Array.isArray(data?.TopKeywords)
+          ? data.TopKeywords.length
+          : 0
+      };
+
+      GM_setValue(resultKey, {
+        ok: true,
+        ts: Date.now(),
+        data,
+        diagnostic
+      });
+    } catch (error) {
+      GM_setValue(resultKey, {
+        ok: false,
+        ts: Date.now(),
+        error: error?.message || String(error),
+        diagnostic: {
+          href: location.href,
+          title: document.title,
+          textLength: String(document.body?.innerText || "").length
+        }
+      });
+    }
+
+    setTimeout(() => {
+      try {
+        window.close();
+      } catch {}
+    }, 400);
+  }
+
+  async function fetchWebFallback(domain) {
+    const requestId =
+      Date.now().toString(36) +
+      Math.random().toString(36).slice(2);
+
+    const resultKey = "__sw_rendered_result__:" + requestId;
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let listenerId = null;
+      let tab = null;
+
+      const cleanup = () => {
+        if (listenerId !== null) {
+          try {
+            GM_removeValueChangeListener(listenerId);
+          } catch {}
+        }
+
+        try {
+          tab?.close?.();
+        } catch {}
+      };
+
+      const finish = payload => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+
+        if (!payload?.ok) {
+          const err = new Error(
+            payload?.error ||
+            "Similarweb rendered fallback failed"
+          );
+          err.__swRenderedDebug = payload?.diagnostic || {};
+          reject(err);
+          return;
+        }
+
+        const data = payload.data || {};
+
+        if (
+          !data?.Engagments?.Visits &&
+          !data?.GlobalRank?.Rank &&
+          !Object.keys(data?.EstimatedMonthlyVisits || {}).length
+        ) {
+          const err = new Error(
+            "Similarweb rendered fallback returned no usable data"
+          );
+          err.__swRenderedDebug = payload?.diagnostic || {};
+          reject(err);
+          return;
+        }
+
+        data.__SW_SOURCE__ = "rendered-web";
+        data.__SW_DIAGNOSTIC__ = payload?.diagnostic || {};
+        resolve(data);
+      };
+
+      listenerId = GM_addValueChangeListener(
+        resultKey,
+        (_name, _oldValue, newValue) => {
+          if (newValue) finish(newValue);
+        }
+      );
+
+      const collectorUrl =
+        "https://www.similarweb.com/website/" +
+        encodeURIComponent(domain) +
+        "/?__sw_collect=1&__sw_domain=" +
+        encodeURIComponent(domain) +
+        "&__sw_req=" +
+        encodeURIComponent(requestId);
+
+      try {
+        tab = GM_openInTab(collectorUrl, {
+          active: false,
+          insert: true,
+          setParent: true
+        });
+      } catch (error) {
+        cleanup();
+        reject(error);
+        return;
+      }
+
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+
+        const err = new Error(
+          "Similarweb rendered fallback timed out"
+        );
+        err.__swRenderedDebug = {
+          collectorUrl,
+          timeoutMs: 22000
+        };
+        reject(err);
+      }, 22000);
+    });
   }
 
   async function fetchSimilarweb(domain) {
@@ -866,7 +1024,9 @@
         !Object.keys(fallback.EstimatedMonthlyVisits || {}).length
       )
     ) {
-      throw new Error("Similarweb fallback returned no usable data");
+      const err = new Error("Similarweb fallback returned no usable data");
+      err.__swRenderedDebug = fallback?.__SW_DIAGNOSTIC__ || {};
+      throw err;
     }
 
     GM_setValue(cacheKey, { ts: Date.now(), data: fallback, source: "web" });
@@ -1145,7 +1305,8 @@
           `${SW.API_URL}?domain=${encodeURIComponent(currentDomain())}`,
         extensionVersion: SW.EXTENSION_VERSION,
         name: error?.name || "",
-        message: error?.message || String(error)
+        message: error?.message || String(error),
+        renderedFallback: error?.__swRenderedDebug || {}
       };
 
     panel.querySelector(".sw-body").innerHTML = `
@@ -1266,5 +1427,21 @@
     document.documentElement.appendChild(button);
   }
 
-  ensureLauncher();
+  const swParams = new URLSearchParams(location.search);
+
+  if (
+    location.hostname === "www.similarweb.com" &&
+    swParams.get("__sw_collect") === "1" &&
+    swParams.get("__sw_domain") &&
+    swParams.get("__sw_req")
+  ) {
+    collectRenderedSimilarweb(
+      swParams.get("__sw_domain"),
+      swParams.get("__sw_req")
+    ).catch(error => {
+      console.error("[SW] collector failed", error);
+    });
+  } else {
+    ensureLauncher();
+  }
 })();
