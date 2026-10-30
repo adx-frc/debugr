@@ -850,6 +850,7 @@
 
     if (visitsHeading >= 0) {
       const max = Math.min(lines.length, visitsHeading + 40);
+      const escapedDomain = domain.replace(/[.*+?^$()|[\]{}]/g, "\\$&");
 
       for (let i = visitsHeading + 1; i < max; i++) {
         const line = lines[i];
@@ -861,18 +862,7 @@
         }
 
         const withDomain = new RegExp(
-          "^(\\d+(?:\\.\\d+)?)\\s*([KMB])\\s*" +
-          domain.replace(/[.*+?^$()|[\\]{}]/g, "\\    if (visitsHeading >= 0) {
-      const found = nextMatchingLine(
-        visitsHeading,
-        30,
-        /^(\d+(?:\.\d+)?)\s*([KMB])$/i
-      );
-
-      if (found) {
-        visits = parseCompact(found.match[1] + found.match[2]);
-      }
-    }"),
+          "^(\\d+(?:\\.\\d+)?)\\s*([KMB]).*" + escapedDomain,
           "i"
         ).exec(line);
 
