@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Similarweb Inspector
 // @namespace    https://github.com/adx-frc
-// @version      2.2.0
+// @version      2.2.1
 // @description  Similarweb traffic inspector with API and public-web fallback
 // @author       AdX
 // @match        http://*/*
@@ -28,9 +28,9 @@
     STYLE_ID: "__sw_inspector_style__",
 
     API_URL: "https://data.similarweb.com/api/v1/data",
-    EXTENSION_VERSION: "6.12.22",
+    EXTENSION_VERSION: "6.12.26",
 
-    VERSION: "2026-09-21-direct-diagnostic"
+    VERSION: "2.2.1-rendered-fallback"
   };
 
   function esc(value) {
@@ -1209,7 +1209,7 @@
   }
 
   async function fetchSimilarweb(domain) {
-    const cacheKey = "__sw_cache_v2__:" + domain;
+    const cacheKey = "__sw_cache_v221__:" + domain;
     const cached = GM_getValue(cacheKey, null);
 
     if (
@@ -1500,7 +1500,9 @@
         apiUrl:
           `${SW.API_URL}?domain=${encodeURIComponent(currentDomain())}`,
         extensionVersion: SW.EXTENSION_VERSION,
-        result: "success"
+        result: "success",
+        source: data?.__SW_SOURCE__ || "api",
+        diagnostic: data?.__SW_DIAGNOSTIC__ || {}
       };
 
       try {
