@@ -13,8 +13,8 @@
 // @connect      www.similarweb.com
 // @run-at       document-idle
 // @noframes
-// @updateURL    https://raw.githubusercontent.com/adx-frc/debugr/main/similarweb-inspector.user.js
-// @downloadURL  https://raw.githubusercontent.com/adx-frc/debugr/main/similarweb-inspector.user.js
+// @updateURL    https://raw.githubusercontent.com/adx-frc/debugr/similarweb-fallback-v2/similarweb-inspector.user.js
+// @downloadURL  https://raw.githubusercontent.com/adx-frc/debugr/similarweb-fallback-v2/similarweb-inspector.user.js
 // ==/UserScript==
 
 (() => {
