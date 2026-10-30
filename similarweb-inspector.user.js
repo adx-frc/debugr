@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Similarweb Inspector
 // @namespace    https://github.com/adx-frc
-// @version      2.1.0
+// @version      2.2.0
 // @description  Similarweb traffic inspector with API and public-web fallback
 // @author       AdX
 // @match        http://*/*
@@ -728,9 +728,14 @@
   }
 
   function parseVisibleHtml(doc, domain) {
-    const text = String(doc.body?.innerText || "")
-      .replace(/\\u00a0/g, " ")
-      .replace(/[ \\t]+/g, " ");
+    const rawText = String(doc.body?.innerText || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\r/g, "");
+
+    const lines = rawText
+      .split("\n")
+      .map(line => line.trim())
+      .filter(Boolean);
 
     const out = {
       SiteName: domain,
@@ -754,48 +759,271 @@
       doc.querySelector('meta[property="og:description"]')?.content ||
       "";
 
-    const rankMatch = (label) => {
-      const re = new RegExp(label + "\\s*#?\\s*([\\d,]+)", "i");
-      const m = re.exec(text);
-      return m ? Number(m[1].replace(/,/g, "")) : null;
+    const indexOfLine = pattern => {
+      if (typeof pattern === "string") {
+        const needle = pattern.toLowerCase();
+        return lines.findIndex(line => line.toLowerCase() === needle);
+      }
+      return lines.findIndex(line => pattern.test(line));
     };
 
-    const globalRank = rankMatch("Global Rank");
-    const countryRank = rankMatch("Country Rank");
-    const categoryRank = rankMatch("Category Rank");
+    const nextMatchingLine = (startIndex, maxAhead, regex) => {
+      if (startIndex < 0) return null;
+      const max = Math.min(lines.length, startIndex + maxAhead + 1);
+      for (let i = startIndex + 1; i < max; i++) {
+        const m = regex.exec(lines[i]);
+        if (m) return { index: i, line: lines[i], match: m };
+      }
+      return null;
+    };
+
+    const parseRankAfter = label => {
+      const i = indexOfLine(label);
+      const found = nextMatchingLine(i, 8, /^#?\s*([\d,]+)$/);
+      return found ? Number(found.match[1].replace(/,/g, "")) : null;
+    };
+
+    const globalRank = parseRankAfter("Global Rank");
+    const countryRank = parseRankAfter("Country Rank");
+    let categoryRank = parseRankAfter("Category Rank");
 
     if (globalRank) out.GlobalRank.Rank = globalRank;
     if (countryRank) out.CountryRank.Rank = countryRank;
+
+    if (!categoryRank && out.Description) {
+      const m = /ranked\s+#([\d,]+)\s+in\s+the\s+(.+?)\s+category/i.exec(out.Description);
+      if (m) {
+        categoryRank = Number(m[1].replace(/,/g, ""));
+        out.CategoryRank.Category = m[2].trim();
+      }
+    }
+
     if (categoryRank) out.CategoryRank.Rank = categoryRank;
 
-    const bounce = /Bounce Rate\\s*([\\d.]+)%/i.exec(text);
-    const pages = /Pages per Visit\\s*([\\d.]+)/i.exec(text);
-    const dur = /Avg Visit Duration\\s*(\\d{1,2}):(\\d{2}):(\\d{2})/i.exec(text);
-    const visits = /Total Visits Last 3 Months[\\s\\S]{0,260}?(\\d+(?:\\.\\d+)?\\s*[KMB])/i.exec(text);
+    const countryAnchor = doc.querySelector(
+      'a[href*="/top-websites/"][href$="/"]'
+    );
 
-    if (bounce) out.Engagments.BounceRate = Number(bounce[1]) / 100;
-    if (pages) out.Engagments.PagePerVisit = Number(pages[1]);
-    if (dur) out.Engagments.TimeOnSite = Number(dur[1]) * 3600 + Number(dur[2]) * 60 + Number(dur[3]);
-    if (visits) out.Engagments.Visits = parseCompact(visits[1]);
+    if (countryAnchor?.textContent?.trim()) {
+      const label = countryAnchor.textContent.trim();
+      if (label && label.length < 80) {
+        out.CountryRank.CountryCode = label;
+      }
+    }
 
-    const sourceDefs = [
-      ["Direct", "Direct"],
-      ["Referrals", "Referrals"],
-      ["Organic Search", "SearchOrganic"],
-      ["Paid Search", "SearchPaid"],
-      ["Social", "SocialOrganic"],
-      ["Email", "Mail"],
-      ["Display Ads", "DisplayAds"],
-      ["Affiliate", "Affiliate"]
-    ];
+    const parsePercentAfterLabel = label => {
+      const i = indexOfLine(label);
+      const found = nextMatchingLine(i, 6, /^([\d.]+)%$/);
+      return found ? Number(found.match[1]) / 100 : null;
+    };
 
-    sourceDefs.forEach(([label, key]) => {
-      const escaped = label.replace(/[.*+?^$()|[\\]{}]/g, "\\$&");
-      const m =
-        new RegExp("([\\d.]+)%\\s*" + escaped, "i").exec(text) ||
-        new RegExp(escaped + "[\\s\\S]{0,50}?([\\d.]+)%", "i").exec(text);
-      if (m) out.TrafficSources[key] = Number(m[1]) / 100;
-    });
+    const parseNumberAfterLabel = label => {
+      const i = indexOfLine(label);
+      const found = nextMatchingLine(i, 6, /^([\d.]+)$/);
+      return found ? Number(found.match[1]) : null;
+    };
+
+    const parseDurationAfterLabel = label => {
+      const i = indexOfLine(label);
+      const found = nextMatchingLine(i, 6, /^(\d{1,2}):(\d{2}):(\d{2})$/);
+      if (!found) return null;
+      return (
+        Number(found.match[1]) * 3600 +
+        Number(found.match[2]) * 60 +
+        Number(found.match[3])
+      );
+    };
+
+    const bounce = parsePercentAfterLabel("Bounce Rate");
+    const pages = parseNumberAfterLabel("Pages per Visit");
+    const timeOnSite = parseDurationAfterLabel("Avg Visit Duration");
+
+    if (bounce !== null) out.Engagments.BounceRate = bounce;
+    if (pages !== null) out.Engagments.PagePerVisit = pages;
+    if (timeOnSite !== null) out.Engagments.TimeOnSite = timeOnSite;
+
+    const visitsHeading = indexOfLine("### Total Visits Last 3 Months") >= 0
+      ? indexOfLine("### Total Visits Last 3 Months")
+      : indexOfLine("Total Visits Last 3 Months");
+
+    let visits = null;
+
+    if (visitsHeading >= 0) {
+      const found = nextMatchingLine(
+        visitsHeading,
+        30,
+        /^(\d+(?:\.\d+)?)\s*([KMB])$/i
+      );
+
+      if (found) {
+        visits = parseCompact(found.match[1] + found.match[2]);
+      }
+    }
+
+    if (visits === null) {
+      const trafficHeading = lines.findIndex(line =>
+        /Traffic\s*&\s*Engagement Analysis/i.test(line)
+      );
+
+      if (trafficHeading >= 0) {
+        const found = nextMatchingLine(
+          trafficHeading,
+          80,
+          /^(\d+(?:\.\d+)?)\s*([KMB])$/i
+        );
+
+        if (found) {
+          visits = parseCompact(found.match[1] + found.match[2]);
+        }
+      }
+    }
+
+    if (visits !== null) {
+      out.Engagments.Visits = visits;
+    }
+
+    const countriesStart = indexOfLine("### Top Countries") >= 0
+      ? indexOfLine("### Top Countries")
+      : indexOfLine("Top Countries");
+
+    if (countriesStart >= 0) {
+      const countries = [];
+
+      for (
+        let i = countriesStart + 1;
+        i < Math.min(lines.length, countriesStart + 45);
+        i++
+      ) {
+        const line = lines[i];
+
+        if (
+          /See all countries/i.test(line) ||
+          /Website Traffic Demographics/i.test(line) ||
+          /^##\s/.test(line)
+        ) {
+          break;
+        }
+
+        if (
+          line === "Share" ||
+          line === "Others" ||
+          /Top Countries/i.test(line) ||
+          /^\d+(?:\.\d+)?%/.test(line)
+        ) {
+          continue;
+        }
+
+        const next = lines[i + 1] || "";
+        const pctMatch = /^([\d.]+)%/.exec(next);
+
+        if (pctMatch) {
+          countries.push({
+            Country: line,
+            Value: Number(pctMatch[1]) / 100
+          });
+          i += 1;
+        }
+      }
+
+      out.TopCountryShares = countries.slice(0, 5);
+    }
+
+    const sourceStart = lines.findIndex(line =>
+      /Top Traffic Sources/i.test(line)
+    );
+
+    if (sourceStart >= 0) {
+      const section = lines
+        .slice(sourceStart, Math.min(lines.length, sourceStart + 45))
+        .join(" ");
+
+      const direct = /Direct traffic, driving\s+([\d.]+)%/i.exec(section);
+
+      if (direct) {
+        out.TrafficSources.Direct = Number(direct[1]) / 100;
+      }
+
+      const channelNames = [
+        ["Direct", "Direct"],
+        ["Referrals", "Referrals"],
+        ["Organic Search", "SearchOrganic"],
+        ["Paid Search", "SearchPaid"],
+        ["Social", "SocialOrganic"],
+        ["Email", "Mail"],
+        ["Display Ads", "DisplayAds"],
+        ["Affiliate", "Affiliate"]
+      ];
+
+      for (const [label, key] of channelNames) {
+        const labelIndex = lines.findIndex(
+          (line, idx) =>
+            idx >= sourceStart &&
+            idx < sourceStart + 45 &&
+            line.toLowerCase() === label.toLowerCase()
+        );
+
+        if (labelIndex < 0) continue;
+
+        const before = lines[labelIndex - 1] || "";
+        const after = lines[labelIndex + 1] || "";
+
+        const beforePct = /^([\d.]+)%$/.exec(before);
+        const afterPct = /^([\d.]+)%$/.exec(after);
+        const match = beforePct || afterPct;
+
+        if (match) {
+          out.TrafficSources[key] = Number(match[1]) / 100;
+        }
+      }
+    }
+
+    const keywordsStart = indexOfLine("### Top Keywords") >= 0
+      ? indexOfLine("### Top Keywords")
+      : indexOfLine("Top Keywords");
+
+    if (keywordsStart >= 0) {
+      const stop = Math.min(lines.length, keywordsStart + 35);
+      const candidates = [];
+
+      for (let i = keywordsStart + 1; i < stop; i++) {
+        const line = lines[i];
+
+        if (
+          /Total Keywords/i.test(line) ||
+          /Referral Web Traffic/i.test(line) ||
+          /^##\s/.test(line)
+        ) {
+          break;
+        }
+
+        if (
+          /^(Organic|Paid)\s+\d+(?:\.\d+)?%$/i.test(line) ||
+          line === "Share" ||
+          /See more/i.test(line)
+        ) {
+          continue;
+        }
+
+        const pieces = line
+          .split(/\$\d+(?:\.\d+)?/)
+          .map(x => x.trim())
+          .filter(Boolean);
+
+        for (const piece of pieces) {
+          if (
+            piece.length >= 2 &&
+            piece.length <= 120 &&
+            !/^\d+(?:\.\d+)?[KMB]?\s+Others/i.test(piece)
+          ) {
+            candidates.push(piece);
+          }
+        }
+      }
+
+      out.TopKeywords = [...new Set(candidates)]
+        .slice(0, 10)
+        .map(Name => ({ Name }));
+    }
 
     return out;
   }
