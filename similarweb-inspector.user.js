@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Similarweb Inspector
 // @namespace    https://github.com/adx-frc
-// @version      2.2.2
+// @version      2.2.3
 // @description  Similarweb traffic inspector with API and public-web fallback
 // @author       AdX
 // @match        http://*/*
@@ -30,7 +30,7 @@
     API_URL: "https://data.similarweb.com/api/v1/data",
     EXTENSION_VERSION: "6.12.26",
 
-    VERSION: "2.2.2-rendered-fallback"
+    VERSION: "2.2.3-rendered-fallback"
   };
 
   function esc(value) {
@@ -1058,41 +1058,69 @@
   }
 
   async function waitForSimilarwebRendered(domain) {
-    const deadline = Date.now() + 18000;
+    const deadline = Date.now() + 35000;
+    let best = null;
+    let bestScore = -1;
 
     while (Date.now() < deadline) {
-      const text = String(document.body?.innerText || "");
+      const embedded = extractApiLike(parseJsonScripts(document), domain);
+      const visible = parseVisibleHtml(document, domain);
+      const data = mergeObject(embedded, visible);
 
-      if (
-        text.includes(domain) &&
-        (
-          text.includes("Global Rank") ||
-          text.includes("Traffic & Engagement Analysis") ||
-          text.includes("Total Visits Last 3 Months")
-        )
-      ) {
-        await sleep(1200);
-        return;
+      const score =
+        (data?.GlobalRank?.Rank ? 5 : 0) +
+        (data?.CountryRank?.Rank ? 2 : 0) +
+        (data?.CategoryRank?.Rank ? 2 : 0) +
+        (data?.Engagments?.Visits ? 5 : 0) +
+        (data?.Engagments?.BounceRate ? 1 : 0) +
+        (Array.isArray(data?.TopCountryShares) ? data.TopCountryShares.length : 0) +
+        (Array.isArray(data?.TopKeywords) ? Math.min(data.TopKeywords.length, 5) : 0);
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = data;
       }
 
-      await sleep(500);
+      if (
+        data?.GlobalRank?.Rank ||
+        data?.Engagments?.Visits
+      ) {
+        await sleep(1800);
+
+        const embedded2 = extractApiLike(parseJsonScripts(document), domain);
+        const visible2 = parseVisibleHtml(document, domain);
+        return mergeObject(embedded2, visible2);
+      }
+
+      await sleep(750);
     }
+
+    return best || {
+      SiteName: domain,
+      Engagments: {},
+      EstimatedMonthlyVisits: {},
+      GlobalRank: {},
+      CountryRank: {},
+      CategoryRank: {},
+      TopCountryShares: [],
+      TrafficSources: {},
+      TopKeywords: []
+    };
   }
 
   async function collectRenderedSimilarweb(domain, requestId) {
     const resultKey = "__sw_rendered_result__:" + requestId;
 
     try {
-      await waitForSimilarwebRendered(domain);
-
-      const data = extractApiLike(parseJsonScripts(document), domain);
-      mergeObject(data, parseVisibleHtml(document, domain));
+      const data = await waitForSimilarwebRendered(domain);
 
       const diagnostic = {
         href: location.href,
         title: document.title,
         textLength: String(document.body?.innerText || "").length,
         scriptCount: document.scripts?.length || 0,
+        visibilityState: document.visibilityState,
+        readyState: document.readyState,
         hasGlobalRank: !!data?.GlobalRank?.Rank,
         hasVisits: !!data?.Engagments?.Visits,
         monthlyVisits: Object.keys(data?.EstimatedMonthlyVisits || {}).length,
@@ -1226,15 +1254,15 @@
         );
         err.__swRenderedDebug = {
           collectorUrl,
-          timeoutMs: 22000
+          timeoutMs: 42000
         };
         reject(err);
-      }, 22000);
+      }, 42000);
     });
   }
 
   async function fetchSimilarweb(domain) {
-    const cacheKey = "__sw_cache_v222__:" + domain;
+    const cacheKey = "__sw_cache_v223__:" + domain;
     const cached = GM_getValue(cacheKey, null);
 
     if (
