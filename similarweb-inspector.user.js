@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Similarweb Inspector
 // @namespace    https://github.com/adx-frc
-// @version      2.2.1
+// @version      2.2.2
 // @description  Similarweb traffic inspector with API and public-web fallback
 // @author       AdX
 // @match        http://*/*
@@ -30,7 +30,7 @@
     API_URL: "https://data.similarweb.com/api/v1/data",
     EXTENSION_VERSION: "6.12.26",
 
-    VERSION: "2.2.1-rendered-fallback"
+    VERSION: "2.2.2-rendered-fallback"
   };
 
   function esc(value) {
@@ -849,6 +849,20 @@
     let visits = null;
 
     if (visitsHeading >= 0) {
+      const max = Math.min(lines.length, visitsHeading + 40);
+
+      for (let i = visitsHeading + 1; i < max; i++) {
+        const line = lines[i];
+
+        const standalone = /^(\d+(?:\.\d+)?)\s*([KMB])$/i.exec(line);
+        if (standalone) {
+          visits = parseCompact(standalone[1] + standalone[2]);
+          break;
+        }
+
+        const withDomain = new RegExp(
+          "^(\\d+(?:\\.\\d+)?)\\s*([KMB])\\s*" +
+          domain.replace(/[.*+?^$()|[\\]{}]/g, "\\    if (visitsHeading >= 0) {
       const found = nextMatchingLine(
         visitsHeading,
         30,
@@ -857,6 +871,27 @@
 
       if (found) {
         visits = parseCompact(found.match[1] + found.match[2]);
+      }
+    }"),
+          "i"
+        ).exec(line);
+
+        if (withDomain) {
+          visits = parseCompact(withDomain[1] + withDomain[2]);
+          break;
+        }
+
+        const compactAnywhere = /(\d+(?:\.\d+)?)\s*([KMB])/i.exec(line);
+
+        if (
+          compactAnywhere &&
+          line.toLowerCase().includes(domain.toLowerCase())
+        ) {
+          visits = parseCompact(
+            compactAnywhere[1] + compactAnywhere[2]
+          );
+          break;
+        }
       }
     }
 
@@ -1209,7 +1244,7 @@
   }
 
   async function fetchSimilarweb(domain) {
-    const cacheKey = "__sw_cache_v221__:" + domain;
+    const cacheKey = "__sw_cache_v222__:" + domain;
     const cached = GM_getValue(cacheKey, null);
 
     if (
